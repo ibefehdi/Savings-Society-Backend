@@ -5,6 +5,9 @@ const bodyParser = require('body-parser');
 const passport = require("passport");
 const session = require("express-session");
 const LocalStrategy = require("passport-local").Strategy;
+const User = require("./models/userSchema")
+const userRoutes = require("./routes/userRoutes");
+
 const validateRequiredFields = require('./middleware/middleware');
 const bcrypt = require("bcrypt");
 require('dotenv').config();
@@ -22,9 +25,9 @@ app.use(
         resave: false,
         saveUninitialized: false,
         cookie: {
-            maxAge: 24 * 60 * 60 * 1000, 
-            secure: false, 
-            httpOnly: true, 
+            maxAge: 24 * 60 * 60 * 1000,
+            secure: false,
+            httpOnly: true,
         },
     })
 );
@@ -73,4 +76,6 @@ passport.deserializeUser(function (id, done) {
         done(err, user);
     });
 });
+app.use('/api/v1/', userRoutes);
+
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
