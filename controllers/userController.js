@@ -3,15 +3,19 @@ const xss = require('xss');
 const bcrypt = require('bcrypt');
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
-
+function sanitizeInput(input) {
+    return xss(input);
+}
 exports.createUser = async (req, res) => {
     try {
         const sanitizedUser = {
-            username: xss(req.body.username),
+            username: sanitizeInput(req.body.username),
             password: await bcrypt.hash(req.body.password, 10),
-            fName: req.body.fName,
+            fName: sanitizeInput(req.body.fName),
             lName: req.body.lName,
-            isAdmin: req.body.isAdmin
+            isAdmin: req.body.isAdmin,
+            phoneNo: req.body.phoneNo,
+            email: req.body.email,
         }
         const user = await User.create({ ...sanitizedUser })
         res.status(201).json({
@@ -42,9 +46,16 @@ exports.getAllUsers = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const users = await User.find().skip(skip)
+        const users = await User.find({}, {
+            _id: 1,
+            username: 1,
+            fName: 1,
+            lName: 1,
+            isAdmin: 1,
+        }).skip(skip)
             .limit(resultsPerPage);
-        const count = await User.countDocuments()
+        const count = await User.countDocuments().skip(skip)
+            .limit(resultsPerPage);
 
         res.status(200).json({ data: users, count: count, metadata: { total: count } })
     } catch (err) {

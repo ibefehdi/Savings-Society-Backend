@@ -7,6 +7,7 @@ const session = require("express-session");
 const LocalStrategy = require("passport-local").Strategy;
 const User = require("./models/userSchema")
 const userRoutes = require("./routes/userRoutes");
+const shareholderRoutes = require("./routes/shareholderRoutes");
 
 const validateRequiredFields = require('./middleware/middleware');
 const bcrypt = require("bcrypt");
@@ -77,5 +78,5 @@ passport.deserializeUser(function (id, done) {
     });
 });
 app.use('/api/v1/', userRoutes);
-
+app.use('/api/v1/',shareholderRoutes);
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));

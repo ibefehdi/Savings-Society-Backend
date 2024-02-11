@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema({
     isAdmin: {
         type: Boolean, default: null
     },
+    phoneNo: { type: String, default: null },
+    email: { type: String, default: null },
     permissions: {
         shareholder: {
             create: { type: Boolean, default: false, default: null },

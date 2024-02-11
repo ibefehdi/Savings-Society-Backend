@@ -6,6 +6,8 @@ const joiUserSchema = Joi.object({
     fName: Joi.string().required(),
     lName: Joi.string().required(),
     isAdmin: Joi.boolean().default(null),
+    phoneNo: Joi.string().default(null),
+    email: Joi.string().default(null),
     permissions: Joi.object({
         shareholder: Joi.object({
             create: Joi.boolean().default(false).default(null),
@@ -15,4 +17,11 @@ const joiUserSchema = Joi.object({
         })
     })
 });
-module.exports = joiUserSchema;
+const joiShareholderSchema = Joi.object({
+    fName: Joi.string().required(),
+    lName: Joi.string().required(),
+    DOB: Joi.string().required(),
+    civilId: Joi.string().required(),
+})
+module.exports.joiUserSchema = joiUserSchema;
+// module.exports.joiShareholderSchema = joiShareholderSchema
