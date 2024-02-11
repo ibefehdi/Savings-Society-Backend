@@ -1,4 +1,4 @@
-const Joi = require('joi'); 
+const Joi = require('joi');
 
 function validateRequiredFields(schema) {
     return (req, res, next) => {
@@ -6,13 +6,13 @@ function validateRequiredFields(schema) {
 
         if (validationResult.error) {
             const missingFields = validationResult.error.details.map(detail => detail.context.key);
-
             res.status(400).json({
                 error: 'Missing required fields',
                 missing: missingFields
             });
         } else {
-            next(); 
+            next();
         }
     };
 }
+module.exports = validateRequiredFields;
