@@ -5,14 +5,6 @@ const counterSchema = new mongoose.Schema({
 });
 
 const Counter = mongoose.model('Counter', counterSchema);
-const addressSchema = new mongoose.Schema({
-    block: { type: Number },
-    street: { type: String },
-    house: { type: String },
-    avenue: { type: String,},
-    city: { type: String },
-})
-const Address = mongoose.model('Address', addressSchema);
 
 const shareholderSchema = new mongoose.Schema({
     fName: { type: String },
@@ -35,7 +27,7 @@ shareholderSchema.pre('save', async function (next) {
             );
 
 
-            this.requestID = counter.seq;
+            this.serial = counter.seq;
 
             next();
         } catch (error) {
@@ -46,4 +38,4 @@ shareholderSchema.pre('save', async function (next) {
         next();
     }
 });
-module.exports = mongoose.model('Shareholder', shareholderSchema)
+module.exports = mongoose.model('Shareholder', shareholderSchema);
