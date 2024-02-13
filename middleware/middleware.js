@@ -7,7 +7,7 @@ function validateRequiredFields(schema) {
         if (validationResult.error) {
             const missingFields = validationResult.error.details.map(detail => detail.context.key);
             res.status(400).json({
-                error: 'Missing required fields',
+                error: 'Missing required fields - الحقول الإلزامية مفقودة',
                 missing: missingFields
             });
         } else {

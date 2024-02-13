@@ -3,12 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const passport = require("passport");
+const cron = require('node-cron');
 const session = require("express-session");
 const LocalStrategy = require("passport-local").Strategy;
 const User = require("./models/userSchema")
 const userRoutes = require("./routes/userRoutes");
 const shareholderRoutes = require("./routes/shareholderRoutes");
-
+const Share = require("./models/shareSchema");
+const Saving = require("./models/savingsSchema");
 const validateRequiredFields = require('./middleware/middleware');
 const bcrypt = require("bcrypt");
 require('dotenv').config();
@@ -44,10 +46,7 @@ app.use((req, res, next) => {
 
     next();
 });
-mongoose.connect(mongoURI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => console.log("Connected to MongoDB"))
+mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB"))
     .catch((err) => console.log("Error connecting to MongoDB", err));
 
 passport.use(
@@ -77,6 +76,29 @@ passport.deserializeUser(function (id, done) {
         done(err, user);
     });
 });
+cron.schedule('* * * * *', async () => {
+    const shares = await Share.find();
+    for (let share of shares) {
+        try {
+            const currentAmount = await share.calculateCurrentPrice();
+            await Share.updateOne({ _id: share._id }, { $set: { currentAmount: currentAmount } });
+        } catch (err) {
+            console.error('Error updating share:', err);
+        }
+    }
+    console.log('Updated current prices for all shares.');
+    const savings = await Saving.find();
+    for (let saving of savings) {
+        try {
+            const currentAmount = await saving.calculateCurrentPrice();
+            await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
+        } catch (err) {
+            console.error('Error updating share:', err);
+        }
+    }
+    console.log('Updated current prices for all Savings.');
+});
+
 app.use('/api/v1/', userRoutes);
-app.use('/api/v1/',shareholderRoutes);
+app.use('/api/v1/', shareholderRoutes);
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
