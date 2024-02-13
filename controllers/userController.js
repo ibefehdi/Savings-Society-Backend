@@ -12,10 +12,10 @@ exports.createUser = async (req, res) => {
             username: sanitizeInput(req.body.username),
             password: await bcrypt.hash(req.body.password, 10),
             fName: sanitizeInput(req.body.fName),
-            lName: req.body.lName,
+            lName: sanitizeInput(req.body.lName),
             isAdmin: req.body.isAdmin,
-            phoneNo: req.body.phoneNo,
-            email: req.body.email,
+            phoneNo: sanitizeInput(req.body.phoneNo),
+            email: sanitizeInput(req.body.email),
         }
         const user = await User.create({ ...sanitizedUser })
         res.status(201).json({

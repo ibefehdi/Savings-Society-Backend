@@ -20,8 +20,19 @@ const joiUserSchema = Joi.object({
 const joiShareholderSchema = Joi.object({
     fName: Joi.string().required(),
     lName: Joi.string().required(),
-    DOB: Joi.string().required(),
+    dob: Joi.string().required(),
     civilId: Joi.string().required(),
+    status: Joi.number().required(),
+    adminId: Joi.array().required(),
+    ibanNumber: Joi.string(),
+    block: Joi.string(),
+    mobileNumber: Joi.string(),
+    street: Joi.string(),
+    house: Joi.string(),
+    city: Joi.string(),
+    shareAmount: Joi.number(),
+    shareInitialPrice: Joi.number(),
+    savingsInitialPrice: Joi.number(),
 })
 module.exports.joiUserSchema = joiUserSchema;
-// module.exports.joiShareholderSchema = joiShareholderSchema
+module.exports.joiShareholderSchema = joiShareholderSchema

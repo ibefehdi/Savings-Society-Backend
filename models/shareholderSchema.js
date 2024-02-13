@@ -10,11 +10,14 @@ const shareholderSchema = new mongoose.Schema({
     fName: { type: String },
     lName: { type: String },
     DOB: { type: Date },
-    civilId: { type: String, required: true },
+    civilId: { type: String, required: true, unique: true },
+    status: { type: Number, enum: [0, 1, 2] }, //0 is active, 1 is inactive/amount withdrawn, 2 is Expired/Death
     ibanNumber: { type: String },
     mobileNumber: { type: String },
     address: { type: mongoose.Schema.Types.ObjectId, ref: 'Address' },
-    serial: { type: Number }
+    serial: { type: Number },
+    share: { type: mongoose.Schema.Types.ObjectId, ref: 'Share' },
+    savings: { type: mongoose.Schema.Types.ObjectId, ref: 'Savings' },
 })
 
 shareholderSchema.pre('save', async function (next) {
