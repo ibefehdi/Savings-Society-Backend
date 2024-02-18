@@ -40,7 +40,51 @@ exports.getUserCount = async (req, res) => {
         res.status(500).json("Message: " + err.message)
     }
 }
-
+exports.loginUser = async (req, res, next) => {
+    passport.authenticate("local", async function (err, user, info) {
+        if (err) {
+            return next(err);
+        }
+        if (!user) {
+            
+            if (info.message === "Incorrect username.") {
+                // Send back a specific code for 'username does not exist'
+                return res.status(401).json({ code: 0, message: info.message });
+            } else if (info.message === "Incorrect password.") {
+                // Send back a specific code for 'wrong password'
+                return res.status(401).json({ code: 1, message: info.message });
+            } else {
+                // For any other authentication failure
+                return res.status(401).json({ info: 2, error: info.message });
+            }
+        }
+        req.logIn(user, async function (err) {
+            if (err) {
+                return next(err);
+            }
+            console.log({
+                message: "Authenticated successfully.",
+                username: user.username,
+                fName: user.fName,
+                lName: user.lName,
+                isAdmin: user.isAdmin,
+                phoneNo: user.phoneNo,
+                permissions: user.permissions,
+                _id: user._id
+            });
+            return res.status(200).json({
+                message: "Authenticated successfully.",
+                username: user.username,
+                fName: user.fName,
+                lName: user.lName,
+                isAdmin: user.isAdmin,
+                phoneNo: user.phoneNo,
+                permissions: user.permissions,
+                _id: user._id
+            });
+        });
+    })(req, res, next);
+}
 exports.getAllUsers = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;

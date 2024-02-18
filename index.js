@@ -9,6 +9,8 @@ const LocalStrategy = require("passport-local").Strategy;
 const User = require("./models/userSchema")
 const userRoutes = require("./routes/userRoutes");
 const shareholderRoutes = require("./routes/shareholderRoutes");
+const shareConfigRoutes = require("./routes/shareConfigRoutes");
+
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
 const validateRequiredFields = require('./middleware/middleware');
@@ -71,10 +73,13 @@ passport.serializeUser(function (user, done) {
     done(null, user.id);
 });
 
-passport.deserializeUser(function (id, done) {
-    User.findById(id, function (err, user) {
-        done(err, user);
-    });
+passport.deserializeUser(async function (id, done) {
+    try {
+        const user = await User.findById(id);
+        done(null, user);
+    } catch (error) {
+        done(error);
+    }
 });
 cron.schedule('* * * * *', async () => {
     const shares = await Share.find();
@@ -101,4 +106,5 @@ cron.schedule('* * * * *', async () => {
 
 app.use('/api/v1/', userRoutes);
 app.use('/api/v1/', shareholderRoutes);
+app.use('/api/v1/', shareConfigRoutes)
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
