@@ -11,6 +11,7 @@ const savingsSchema = new mongoose.Schema({
     initialAmount: { type: Number },
     currentAmount: { type: Number },
     date: { type: Date },
+    withdrawn: Boolean,
     adminId: [adminIdSchema],
 }, { timestamps: true });
 
@@ -25,7 +26,7 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     // Assuming a 12% per year increase
     const annualIncreaseRate = 0.12; // 12% annual increase
     // Apply the 12% increase per year based on the initial amount
-    const currentAmount = this.initialAmount * Math.pow(1 + annualIncreaseRate, elapsedYearsExact);
+    const currentAmount = this.currentAmount * Math.pow(1 + annualIncreaseRate, elapsedYearsExact); //compound interest
     console.log("This is the currentAmount", currentAmount);
     console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
 

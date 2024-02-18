@@ -30,9 +30,14 @@ const joiShareholderSchema = Joi.object({
     street: Joi.string(),
     house: Joi.string(),
     city: Joi.string(),
+    email: Joi.string(),
+    poBox: Joi.string(),
+    zipCode: Joi.string(),
     shareAmount: Joi.number(),
     shareInitialPrice: Joi.number(),
     savingsInitialPrice: Joi.number(),
+    area: Joi.string(),
+    country: Joi.string(),
 })
 module.exports.joiUserSchema = joiUserSchema;
 module.exports.joiShareholderSchema = joiShareholderSchema
