@@ -9,7 +9,24 @@ const xss = require('xss');
 function sanitizeInput(input) {
     return xss(input);
 }
+exports.getAllShareholders = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const shareholders = await Shareholder.find().populate('savings').populate('share').skip(skip)
+            .limit(resultsPerPage);;
 
+        const total = await Shareholder.countDocuments()
+        res.status(200).send({
+            data: shareholders,
+            total: total,
+            metadata: { total: total }
+        });
+    } catch (err) {
+        res.status(500).send({ message: err.message })
+    }
+}
 exports.createShareholder = async (req, res) => {
     try {
         const sanitizedAddress = {
@@ -24,6 +41,7 @@ exports.createShareholder = async (req, res) => {
             amount: sanitizeInput(req.body.shareAmount),
             initialAmount: sanitizeInput(req.body.shareInitialPrice),
             currentAmount: sanitizeInput(req.body.shareInitialPrice),
+            withdrawn: false,
             date: new Date(),
             year: new Date().getFullYear(),
         }
@@ -39,6 +57,7 @@ exports.createShareholder = async (req, res) => {
         const sanitizedSavings = {
             initialAmount: sanitizeInput(req.body.savingsInitialPrice),
             currentAmount: sanitizeInput(req.body.savingsInitialPrice),
+            withdrawn: false,
             adminId: adminIdWithTimestamp,
             date: new Date()
         }
@@ -168,16 +187,44 @@ exports.addSavingsToShareholder = async (req, res) => {
 exports.withdrawWealth = async (req, res) => {
     try {
         const id = req.params.id;
-        const shareholder = await Shareholder.findOne({ _id: id }).populate('savings');
+        const userId = req.body.userId;
+        const status = req.body.status;
+        const membershipStatus = req.body.membershipStatus;
+        // Find the shareholder and populate the necessary references
+        const shareholder = await Shareholder.findOne({ _id: id }).populate('savings').populate('share');
         if (!shareholder) {
-            return res.status(404).send({ message: 'Shareholder not found' });
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
+
+        shareholder.lastEditedBy.push(userId);
+        shareholder.status = status;
+        shareholder.membershipStatus = membershipStatus;
+        await shareholder.save();
+
+        if (shareholder.savings) {
+            await Saving.findByIdAndUpdate(shareholder.savings._id, { $set: { withdrawn: true } });
+        }
+
+        // Update shares if they exist
+        if (shareholder.share && shareholder.share.length > 0) {
+            await Promise.all(shareholder.share.map(share => {
+                return Share.findByIdAndUpdate(share._id, { $set: { withdrawn: true } });
+            }));
+        }
+
+        // Refetch or update the necessary documents to reflect changes
+        const updatedSavings = await Saving.findById(shareholder.savings._id);
+
+        // Construct and send the response
         const response = {
+            shareholder: shareholder,
             share: shareholder.share,
-            savings: shareholder.savings
+            savings: updatedSavings
         };
-        res.status(200).send(response);
+
+        res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their wealth.` });
     } catch (err) {
-        res.status(400).send({ message: err.message });
+        res.status(400).send({ status: 4, message: err.message });
     }
 };
+

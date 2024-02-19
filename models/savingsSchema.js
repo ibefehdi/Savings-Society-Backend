@@ -19,6 +19,11 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     const now = new Date();
     console.log("This is the date ", now);
     const purchaseDate = this.date;
+    const withdrawn = this.withdrawn
+    if (withdrawn) {
+        console.log("The user has withdrawn their savings ", this.currentAmount)
+        return this.currentAmount
+    }
     console.log("This is the purchase date ", purchaseDate);
     // Calculate elapsed years as a fraction to account for partial years
     const elapsedYearsExact = (now - purchaseDate) / (1000 * 60 * 60 * 24 * 365);
