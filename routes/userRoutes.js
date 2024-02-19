@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { createUser, getUserCount, getAllUsers, loginUser } = require('../controllers/userController');
+const { createUser, getUserCount, getAllUsers, loginUser, editUser } = require('../controllers/userController');
 const validateRequiredFields = require('../middleware/middleware');
 const { joiUserSchema } = require("../validationModels/joiModels")
 /**
@@ -62,4 +62,8 @@ router.get('/users/', getAllUsers)
 //POST Routes
 router.post('/users/signup', validateRequiredFields(joiUserSchema), createUser);
 router.post('/users/signin', loginUser)
+
+//PUT Routes
+router.put('/user/:id', editUser);
+
 module.exports = router;
