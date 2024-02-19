@@ -20,6 +20,8 @@ const joiUserSchema = Joi.object({
 const joiShareholderSchema = Joi.object({
     fName: Joi.string().required(),
     lName: Joi.string().required(),
+    arabFName: Joi.string(),
+    arabLName: Joi.string(),
     dob: Joi.string().required(),
     civilId: Joi.string().required(),
     status: Joi.number().required(),

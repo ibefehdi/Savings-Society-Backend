@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     fName: { type: String, required: true },
     lName: { type: String, required: true },
+    isActive: { type: Boolean },
     isAdmin: {
         type: Boolean, default: null
     },

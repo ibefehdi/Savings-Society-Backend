@@ -10,7 +10,7 @@ const User = require("./models/userSchema")
 const userRoutes = require("./routes/userRoutes");
 const shareholderRoutes = require("./routes/shareholderRoutes");
 const shareConfigRoutes = require("./routes/shareConfigRoutes");
-
+const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
 const validateRequiredFields = require('./middleware/middleware');
@@ -21,7 +21,6 @@ const swaggerDefinition = require('./utils/swaggerDef');
 require('dotenv').config();
 const options = {
     swaggerDefinition,
-    // Paths to files containing OpenAPI definitions
     apis: ['./routes/*.js'], // Adjust the path to your route files accordingly
 };
 const swaggerSpec = swaggerJsdoc(options);
@@ -34,6 +33,30 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const mongoURI = process.env.MONGODB_CONNECTION_STRING;
 const port = process.env.PORT || 8081;
+function logRequestsAndResponses(req, res, next) {
+    // Log the request details
+    if (req.method === 'POST' || req.method === 'PUT') {
+        // For POST requests, log the body as well
+        logger.info(`Received ${req.method} request for ${req.url} with body: ${JSON.stringify(req.body)}`);
+    } else {
+        // For non-POST requests, just log the method and URL
+        logger.info(`Received ${req.method} request for ${req.url}`);
+    }
+
+    // Save a reference to the original send function
+    const originalSend = res.send;
+
+    // Wrap the send function to intercept the response
+    res.send = function (body) {
+        // Log the response body here
+        logger.info(`Response sent for ${req.method} ${req.url}: ${body}`);
+
+        // Call the original send function with the body
+        return originalSend.call(this, body);
+    };
+
+    next();
+}
 
 app.use(
     session({
@@ -59,7 +82,7 @@ app.use((req, res, next) => {
 
     next();
 });
-mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB"))
+mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
     .catch((err) => console.log("Error connecting to MongoDB", err));
 
 passport.use(
@@ -114,8 +137,11 @@ cron.schedule('* * * * *', async () => {
     }
     console.log('Updated current prices for all Savings.');
 });
+app.use(logRequestsAndResponses);
+
 
 app.use('/api/v1/', userRoutes);
 app.use('/api/v1/', shareholderRoutes);
-app.use('/api/v1/', shareConfigRoutes)
+app.use('/api/v1/', shareConfigRoutes);
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
+

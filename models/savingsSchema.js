@@ -11,17 +11,16 @@ const savingsSchema = new mongoose.Schema({
     initialAmount: { type: Number },
     currentAmount: { type: Number },
     date: { type: Date },
-    withdrawn: Boolean,
+    withdrawn: { type: Boolean },
+    maxReached: { type: Boolean },
     adminId: [adminIdSchema],
 }, { timestamps: true });
 
 savingsSchema.methods.calculateCurrentPrice = async function () {
     const now = new Date();
-    console.log("This is the date ", now);
     const purchaseDate = this.date;
     const withdrawn = this.withdrawn
     if (withdrawn) {
-        console.log("The user has withdrawn their savings ", this.currentAmount)
         return this.currentAmount
     }
     console.log("This is the purchase date ", purchaseDate);

@@ -14,13 +14,18 @@ exports.getAllShareholders = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const shareholders = await Shareholder.find().populate('savings').populate('share').skip(skip)
+        const status = req.query.status || 0;
+        let queryConditions = {};
+        if (status) {
+            queryConditions.status = status;
+        }
+        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').skip(skip)
             .limit(resultsPerPage);;
 
         const total = await Shareholder.countDocuments()
         res.status(200).send({
             data: shareholders,
-            total: total,
+            count: total,
             metadata: { total: total }
         });
     } catch (err) {
@@ -37,14 +42,20 @@ exports.createShareholder = async (req, res) => {
             city: sanitizeInput(req.body.city),
         }
         const address = await Address.create(sanitizedAddress);
+        const shareAmount = sanitizeInput(req.body.shareAmount);
+        const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
+        if (!shareAmount || !shareInitialPrice || shareAmount == 0 || shareInitialPrice == 0) {
+            return res.status(400).send({ code: 2, message: "Cannot create shareholder without buying share" });
+        }
         const sanitizedShare = {
-            amount: sanitizeInput(req.body.shareAmount),
-            initialAmount: sanitizeInput(req.body.shareInitialPrice),
-            currentAmount: sanitizeInput(req.body.shareInitialPrice),
+            amount: shareAmount,
+            initialAmount: shareInitialPrice,
+            currentAmount: shareInitialPrice,
             withdrawn: false,
             date: new Date(),
             year: new Date().getFullYear(),
         }
+
         const share = await Share.create(sanitizedShare)
         const adminId = (req.body.adminId);
 
@@ -65,7 +76,9 @@ exports.createShareholder = async (req, res) => {
 
         const sanitizedShareholder = {
             fName: sanitizeInput(req.body.fName),
+            arabFName: sanitizeInput(req.body.arabFName),
             lName: sanitizeInput(req.body.lName),
+            arabLName: sanitizeInput(req.body.arabLName),
             DOB: sanitizeInput(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             ibanNumber: sanitizeInput(req.body.ibanNumber),
@@ -88,7 +101,7 @@ exports.createShareholder = async (req, res) => {
         console.log(sanitizedShareholder);
 
         const shareholder = await Shareholder.create(sanitizedShareholder);
-        res.status(200).send({ status: 0, message: "Shareholder Saved Successfully.", shareholder })
+        res.status(201).send({ status: 0, message: "Shareholder Saved Successfully.", shareholder })
     } catch (err) {
         res.status(400).send({ status: 1, message: err.message })
     }
@@ -125,6 +138,8 @@ exports.editShareholder = async (req, res) => {
         shareholder.zipCode = sanitizeInput(req.body.zipCode) || shareholder.zipCode;
         shareholder.Area = sanitizeInput(req.body.area) || shareholder.Area;
         shareholder.Country = sanitizeInput(req.body.country) || shareholder.Country;
+        shareholder.arabLName = sanitizeInput(req.body.arabLName) || shareholder.arabLName;
+        shareholder.arabFName = sanitizeInput(req.body.arabFName) || shareholder.arabFName;
         shareholder.lastEditedBy.push(userId);
         // Update the address associated with the shareholder
         if (shareholder.address) {
@@ -143,7 +158,7 @@ exports.editShareholder = async (req, res) => {
         // Save the updated shareholder information
         await shareholder.save();
 
-        res.status(200).send({ status: 0, message: "Shareholder updated successfully.", shareholder });
+        res.status(201).send({ status: 0, message: "Shareholder updated successfully.", shareholder });
     } catch (err) {
         res.status(400).send({ status: 1, message: err.message });
     }
