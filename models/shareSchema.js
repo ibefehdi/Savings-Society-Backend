@@ -31,7 +31,7 @@ shareSchema.methods.calculateCurrentPrice = async function () {
     const purchaseDate = this.date;
     const purchaseYear = purchaseDate.getFullYear();
     const currentYear = now.getFullYear();
-
+    const withdrawn = this.withdrawn;
     let currentAmount = this.initialAmount;
 
     for (let year = purchaseYear; year <= currentYear; year++) {
@@ -40,6 +40,11 @@ shareSchema.methods.calculateCurrentPrice = async function () {
         if (!shareConfig) {
             console.log(`No share configuration found for year ${year}`);
             return currentAmount; // Return the initial amount if no config is found for the purchase year
+        }
+        if (withdrawn) {
+            console.log('The user has withdrawn the share')
+            console.log("Withdrawn amount: ", currentAmount);
+            return currentAmount;
         }
 
         const annualIncreaseRate = shareConfig.individualSharePercentage / 100; // Convert percentage to decimal
@@ -55,6 +60,7 @@ shareSchema.methods.calculateCurrentPrice = async function () {
         }
 
         // Calculate the appreciation for the year or fraction thereof
+        // currentAmount *= 10 //For Testing purposes
         currentAmount *= Math.pow(1 + annualIncreaseRate, yearFraction);
     }
 

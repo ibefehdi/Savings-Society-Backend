@@ -15,11 +15,22 @@ const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
 const validateRequiredFields = require('./middleware/middleware');
 const bcrypt = require("bcrypt");
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerDefinition = require('./utils/swaggerDef');
 require('dotenv').config();
+const options = {
+    swaggerDefinition,
+    // Paths to files containing OpenAPI definitions
+    apis: ['./routes/*.js'], // Adjust the path to your route files accordingly
+};
+const swaggerSpec = swaggerJsdoc(options);
+
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const mongoURI = process.env.MONGODB_CONNECTION_STRING;
 const port = process.env.PORT || 8081;
@@ -56,11 +67,11 @@ passport.use(
         try {
             const user = await User.findOne({ username: username });
             if (!user) {
-                return done(null, false, { message: "Incorrect username." });
+                return done(null, false, { status: 1, message: "Incorrect username." });
             }
             const match = await bcrypt.compare(password, user.password);
             if (!match) {
-                return done(null, false, { message: "Incorrect password." });
+                return done(null, false, { status: 2, message: "Incorrect password." });
             }
             return done(null, user);
         } catch (err) {
