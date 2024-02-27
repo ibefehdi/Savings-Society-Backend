@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { createUser, getUserCount, getAllUsers, loginUser, editUser } = require('../controllers/userController');
+const { createUser, getUserCount, getAllUsers, loginUser, editUser, deactivateUser } = require('../controllers/userController');
 const validateRequiredFields = require('../middleware/middleware');
 const { joiUserSchema } = require("../validationModels/joiModels")
 /**
@@ -59,6 +59,7 @@ router.get('/userscount/', getUserCount);
  *         description: App version mismatch. Please refresh or reload the application.
  */
 router.get('/users/', getAllUsers)
+router.get('/deleteuser/:id', deactivateUser)
 //POST Routes
 router.post('/users/signup', validateRequiredFields(joiUserSchema), createUser);
 router.post('/users/signin', loginUser)

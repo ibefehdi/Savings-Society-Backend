@@ -3,11 +3,45 @@ const xss = require('xss');
 const bcrypt = require('bcrypt');
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
+require('dotenv').config();
+
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.PASSPORT_SECRET;
+const generateToken = (user) => {
+    const payload = {
+        id: user._id,
+        username: user.username,
+        fName: user.fName,
+        lName: user.lName,
+        isAdmin: user.isAdmin,
+        permissions: user.permissions
+    };
+
+    return jwt.sign(payload, JWT_SECRET, {
+        expiresIn: '2d'
+    });
+};
 function sanitizeInput(input) {
     return xss(input);
 }
 exports.createUser = async (req, res) => {
     try {
+        // Assuming sanitizeInput is a function you've defined to sanitize inputs
+        const sanitizedPermissions = {
+            shareholder: {
+                create: req.body.permissions?.shareholder?.create ?? false,
+                view: req.body.permissions?.shareholder?.view ?? false,
+                edit: req.body.permissions?.shareholder?.edit ?? false,
+                delete: req.body.permissions?.shareholder?.delete ?? false
+            },
+            user: {
+                create: req.body.permissions?.user?.create ?? false,
+                view: req.body.permissions?.user?.view ?? false,
+                edit: req.body.permissions?.user?.edit ?? false,
+                delete: req.body.permissions?.user?.delete ?? false
+            }
+        };
+
         const sanitizedUser = {
             username: sanitizeInput(req.body.username),
             password: await bcrypt.hash(req.body.password, 10),
@@ -17,7 +51,9 @@ exports.createUser = async (req, res) => {
             isAdmin: req.body.isAdmin,
             phoneNo: sanitizeInput(req.body.phoneNo),
             email: sanitizeInput(req.body.email),
+            permissions: sanitizedPermissions
         }
+
         const user = await User.create({ ...sanitizedUser })
         res.status(201).json({
             message: "Sign-up successfully.",
@@ -25,11 +61,11 @@ exports.createUser = async (req, res) => {
             fName: user.fName,
             lName: user.lName,
             isActive: user.isActive,
-            _id: user._id
+            _id: user._id,
+            permissions: user.permissions // Include permissions in the response if needed
         });
     } catch (err) {
         res.status(500).json("Message: " + err.message)
-
     }
 }
 
@@ -69,22 +105,25 @@ exports.loginUser = async (req, res, next) => {
             if (err) {
                 return next(err);
             }
+            const token = generateToken(user);
+
+            res.cookie('token', token, {
+                sameSite: 'Lax',
+                secure: true,
+                maxAge: 48 * 60 * 60 * 1000
+            });
             return res.status(200).json({
+                code: 4,
                 message: "Authenticated successfully.",
-                username: user.username,
-                fName: user.fName,
-                lName: user.lName,
-                isAdmin: user.isAdmin,
-                phoneNo: user.phoneNo,
-                permissions: user.permissions,
-                _id: user._id
+                token: token
+                // Do not need to send the token in the response body if it's set in the cookie
             });
         });
     })(req, res, next);
 };
 exports.deactivateUser = async (req, res) => {
     try {
-        const userId = req.body.userId;
+        const userId = req.params.id;
         const user = await User.findByIdAndUpdate({ _id: userId }, { isActive: false }, { new: true });
         if (!user) {
             res.status(404).json({ code: 1, message: "User Not Found." })
@@ -104,21 +143,36 @@ exports.getAllUsers = async (req, res) => {
             username: 1,
             fName: 1,
             lName: 1,
+            email: 1,
+            phoneNo: 1,
+            permissions: 1,
             isAdmin: 1,
         }).skip(skip)
             .limit(resultsPerPage);
-        const count = await User.countDocuments().skip(skip)
+        const count = await User.countDocuments({ isActive: true }).skip(skip)
             .limit(resultsPerPage);
 
         res.status(200).json({ data: users, count: count, metadata: { total: count } })
     } catch (err) {
         res.status(500).json("Message: " + err.message)
-
     }
 }
 exports.editUser = async (req, res) => {
     const { id } = req.params; // Assuming the user's ID is passed as a URL parameter
-
+    const sanitizedPermissions = {
+        shareholder: {
+            create: req.body.permissions?.shareholder?.create ?? false,
+            view: req.body.permissions?.shareholder?.view ?? false,
+            edit: req.body.permissions?.shareholder?.edit ?? false,
+            delete: req.body.permissions?.shareholder?.delete ?? false
+        },
+        user: {
+            create: req.body.permissions?.user?.create ?? false,
+            view: req.body.permissions?.user?.view ?? false,
+            edit: req.body.permissions?.user?.edit ?? false,
+            delete: req.body.permissions?.user?.delete ?? false
+        }
+    };
     try {
         // Prepare the user update object, sanitizing inputs as needed
         const updates = {
@@ -130,6 +184,7 @@ exports.editUser = async (req, res) => {
             ...(req.body.isAdmin !== undefined && { isAdmin: req.body.isAdmin }), // Explicit check for boolean
             ...(req.body.phoneNo && { phoneNo: sanitizeInput(req.body.phoneNo) }),
             ...(req.body.email && { email: sanitizeInput(req.body.email) }),
+            ...(req.body.permissions && { permissions: sanitizedPermissions })
         };
 
         // Find the user by id and update their information
