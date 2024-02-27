@@ -17,7 +17,12 @@ const userSchema = new mongoose.Schema({
             edit: { type: Boolean, default: false, default: null },
             delete: { type: Boolean, default: false, default: null }
         },
-
+        user: {
+            create: { type: Boolean, default: false, default: null },
+            view: { type: Boolean, default: false, default: null },
+            edit: { type: Boolean, default: false, default: null },
+            delete: { type: Boolean, default: false, default: null }
+        },
     }
 });
 module.exports = mongoose.model('User', userSchema);

@@ -27,7 +27,7 @@ const swaggerSpec = swaggerJsdoc(options);
 
 const app = express();
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 

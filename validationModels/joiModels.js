@@ -7,9 +7,15 @@ const joiUserSchema = Joi.object({
     lName: Joi.string().required(),
     isAdmin: Joi.boolean().default(null),
     phoneNo: Joi.string().default(null),
-    email: Joi.string().default(null),
+    email: Joi.string(),
     permissions: Joi.object({
         shareholder: Joi.object({
+            create: Joi.boolean().default(false).default(null),
+            view: Joi.boolean().default(false).default(null),
+            edit: Joi.boolean().default(false).default(null),
+            delete: Joi.boolean().default(false).default(null)
+        }),
+        user: Joi.object({
             create: Joi.boolean().default(false).default(null),
             view: Joi.boolean().default(false).default(null),
             edit: Joi.boolean().default(false).default(null),
