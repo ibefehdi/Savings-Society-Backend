@@ -19,7 +19,7 @@ exports.getAllShareholders = async (req, res) => {
         if (status) {
             queryConditions.status = status;
         }
-        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').skip(skip)
+        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').populate('address').skip(skip)
             .limit(resultsPerPage);;
 
         const total = await Shareholder.countDocuments()
