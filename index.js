@@ -10,6 +10,8 @@ const User = require("./models/userSchema")
 const userRoutes = require("./routes/userRoutes");
 const shareholderRoutes = require("./routes/shareholderRoutes");
 const shareConfigRoutes = require("./routes/shareConfigRoutes");
+const savingConfigRoutes = require("./routes/savingsConfigRoutes");
+
 const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
@@ -143,5 +145,6 @@ app.use(logRequestsAndResponses);
 app.use('/api/v1/', userRoutes);
 app.use('/api/v1/', shareholderRoutes);
 app.use('/api/v1/', shareConfigRoutes);
+app.use('/api/v1/', savingConfigRoutes)
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
