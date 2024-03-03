@@ -2,7 +2,7 @@ const Shareholder = require('../models/shareholderSchema');
 const Address = require('../models/addressSchema');
 const Share = require('../models/shareSchema');
 const Saving = require('../models/savingsSchema');
-
+const WithdrawalLog = require('../models/withdrawalLogSchema')
 const xss = require('xss');
 
 
@@ -127,11 +127,11 @@ exports.createShareholder = async (req, res) => {
 exports.editShareholder = async (req, res) => {
     try {
         const shareholderId = req.params.id;
-        const userId = req.body.userId; // Capture the userId from the request body
+        const userId = req.body.adminId; // Capture the userId from the request body
 
         // Check if userId is provided
         if (!userId) {
-            return res.status(400).send({ status: 3, message: "UserId is required to edit the shareholder." });
+            return res.status(400).send({ status: 3, message: "adminId is required to edit the shareholder." });
         }
         // Find the shareholder by ID
         const shareholder = await Shareholder.findById(shareholderId);
@@ -173,9 +173,25 @@ exports.editShareholder = async (req, res) => {
             }
         }
 
+        console.log("This is the savings", shareholder.savings);
+        console.log("This is the membership status", shareholder.membershipStatus);
         // Save the updated shareholder information
         await shareholder.save();
-
+        if ((shareholder.membershipStatus === 1 || shareholder.status === 1 || shareholder.status === 2) && shareholder.savings) {
+            const savings = await Saving.findById(shareholder.savings);
+            console.log("This is the savings Object:", savings);
+            if (savings) {
+                savings.withdrawn = true;
+                await savings.save();
+            }
+            shareholder?.share?.map(async share => {
+                const shar = await Share.findById(share._id);
+                if (shar) {
+                    shar.withdrawn = true;
+                    await shar.save();
+                }
+            })
+        }
         res.status(201).send({ status: 0, message: "Shareholder updated successfully.", shareholder });
     } catch (err) {
         res.status(400).send({ status: 1, message: err.message });
@@ -261,3 +277,89 @@ exports.withdrawWealth = async (req, res) => {
     }
 };
 
+exports.withdrawSavings = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const userId = req.body.userId;
+
+        const shareholder = await Shareholder.findOne({ _id: id }).populate('savings');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        // Check if savings have already been withdrawn
+        if (shareholder.savings && shareholder.savings.withdrawn) {
+            const response = {
+                shareholder: shareholder,
+                savings: shareholder.savings,
+                link: `/printsavingswithdrawal/${shareholder.id}`
+            };
+            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        }
+
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        if (shareholder.savings) {
+            await Saving.findByIdAndUpdate(shareholder.savings._id, { $set: { withdrawn: true } });
+        }
+        const updatedSavings = await Saving.findById(shareholder.savings._id);
+        const withdrawalLog = new WithdrawalLog({
+            shareholder: shareholder._id,
+            saving: updatedSavings._id,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        });
+
+        // Save the WithdrawalLog to the database
+        await withdrawalLog.save();
+        const response = {
+            shareholder: shareholder,
+            savings: updatedSavings,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        };
+        res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.` });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.withdrawShares = async (req, res) => {
+    try {
+        const id = req.params.id; // Assuming this is the shareholder's ID
+        const userId = req.body.userId;
+
+        const shareholder = await Shareholder.findById(id).populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        // Check if shares have already been withdrawn
+        const sharesToWithdraw = shareholder.share.filter(share => !share.withdrawn);
+        if (sharesToWithdraw.length === 0) {
+            const response = {
+                shareholder: shareholder,
+                shares: sharesToWithdraw,
+                link: `/printsavingswithdrawal/${shareholder.id}`
+            };
+            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        }
+
+        // Withdraw shares
+        for (const share of sharesToWithdraw) {
+            await Share.findByIdAndUpdate(share._id, { $set: { withdrawn: true } });
+            // Optionally, create a log for each withdrawn share
+        }
+
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+        const response = {
+            shareholder: shareholder,
+            shares: sharesToWithdraw,
+            link: `/printshareswithdrawal/${shareholder.id}`
+        };
+        res.status(200).send({ status: 0, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.`, response });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
