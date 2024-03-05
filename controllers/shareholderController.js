@@ -179,18 +179,16 @@ exports.editShareholder = async (req, res) => {
         await shareholder.save();
         if ((shareholder.membershipStatus === 1 || shareholder.status === 1 || shareholder.status === 2) && shareholder.savings) {
             const savings = await Saving.findById(shareholder.savings);
-            console.log("This is the savings Object:", savings);
             if (savings) {
                 savings.withdrawn = true;
                 await savings.save();
             }
-            shareholder?.share?.map(async share => {
-                const shar = await Share.findById(share._id);
-                if (shar) {
-                    shar.withdrawn = true;
-                    await shar.save();
-                }
-            })
+            const shar = await Share.findById(share._id);
+            if (shar) {
+                shar.withdrawn = true;
+                await shar.save();
+            }
+
         }
         res.status(201).send({ status: 0, message: "Shareholder updated successfully.", shareholder });
     } catch (err) {
@@ -200,39 +198,84 @@ exports.editShareholder = async (req, res) => {
 
 exports.addSavingsToShareholder = async (req, res) => {
     try {
-        const id = req.params.id;
-        const newAmount = req.body.newAmount;
-        const adminId = req.body.adminId;
-        const currentSavings = await Saving.findById(id);
-        if (!currentSavings) {
+        const id = req.params.id; // Shareholder ID
+        const newAmount = Number(req.body.newAmount); // The amount being added
+        const adminId = req.body.adminId; // Admin ID(s) making the change
+
+        // Retrieve the current savings for the specified shareholder
+        const currentSavings = await Shareholder.findById(id).populate('savings');
+
+        if (!currentSavings || !currentSavings.savings) {
             return res.status(404).send({ message: "Savings not found." });
         }
-        console.log(currentSavings);
-        const currentAmount = currentSavings.currentAmount;
+
+        // Prepare adminId with timestamp and previous amount for audit purposes
+        const adminIdWithTimestamp = adminId.map(admin => ({
+            ...admin,
+            amountBeforeChange: currentSavings.savings.currentAmount,
+            timestamp: new Date()
+        }));
+
+        // Update the Savings document with the new amount and record the addition
+        const updatedSavings = await Saving.findOneAndUpdate(
+            { _id: currentSavings.savings._id },
+            {
+                $set: { currentAmount: currentSavings.savings.currentAmount + newAmount },
+                $push: {
+                    additions: { amount: newAmount, date: new Date() }, // Record this addition
+                    adminId: { $each: adminIdWithTimestamp } // Assuming this is for audit/logging
+                }
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedSavings) {
+            return res.status(404).send({ message: "Savings update failed." });
+        }
+
+        res.status(200).send({ message: "Savings updated successfully.", savings: updatedSavings });
+    } catch (err) {
+        res.status(400).send({ message: err.message });
+    }
+};
+
+exports.addSharesToShareholder = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const newShareAmount = Number(req.body.newAmount);
+        const adminId = req.body.adminId;
+        const currentShares = await Shareholder.findById(id).populate('share');
+        if (!currentShares || !currentShares.share) {
+            return res.status(404).send({ message: "Shareholder or their shares not found." });
+        }
+        const currentAmount = Number(currentShares.share.currentAmount);
+
         const adminIdWithTimestamp = adminId.map(admin => ({
             ...admin,
             amountBeforeChange: currentAmount,
             timestamp: new Date()
         }));
-        console.log(adminIdWithTimestamp);
-        // Update the Savings document
-        const savings = await Saving.findOneAndUpdate(
-            { _id: id },
+
+        // Update the Share document associated with the Shareholder
+        const updatedShare = await Share.findByIdAndUpdate(
+            currentShares.share._id,
             {
-                $set: { currentAmount: newAmount },
+                $set: { currentAmount: currentAmount + newShareAmount },
                 $push: { adminId: { $each: adminIdWithTimestamp } }
             },
             { new: true }
         );
-        console.log(savings)
-        if (!savings) {
-            return res.status(404).send({ status: 2, message: "Savings not found." });
+
+        if (!updatedShare) {
+            return res.status(404).send({ status: 2, message: "Share not found." });
         }
-        res.status(200).send({ status: 0, message: "Savings updated successfully.", savings });
+
+        res.status(200).send({ status: 0, message: "Shares updated successfully.", share: updatedShare });
     } catch (err) {
         res.status(400).send({ status: 1, message: err.message });
     }
 };
+
 exports.withdrawWealth = async (req, res) => {
     try {
         const id = req.params.id;
@@ -255,12 +298,10 @@ exports.withdrawWealth = async (req, res) => {
         }
 
         // Update shares if they exist
-        if (shareholder.share && shareholder.share.length > 0) {
-            await Promise.all(shareholder.share.map(share => {
-                return Share.findByIdAndUpdate(share._id, { $set: { withdrawn: true } });
-            }));
-        }
+        if (shareholder.share) {
+            await Share.findByIdAndUpdate(shareholder.share._id, { $set: { withdrawn: true } });
 
+        }
         // Refetch or update the necessary documents to reflect changes
         const updatedSavings = await Saving.findById(shareholder.savings._id);
 
@@ -296,7 +337,6 @@ exports.withdrawSavings = async (req, res) => {
             };
             return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
         }
-
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
 
@@ -323,6 +363,23 @@ exports.withdrawSavings = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+exports.getShareholderFinancials = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const shareholder = await Shareholder.findOne({ _id: id }).populate('share').populate('savings').populate('amanat');
+        console.log(shareholder);
+        const response = {
+            savings: shareholder.savings,
+            shares: shareholder.share,
+            amanat: shareholder.amanat
+        }
+        res.status(200).send({ status: 0, response, message: "The financials of the user have been sent" })
+    } catch (err) {
+        console.error('Error getting financials of this user. ', err)
+        res.status(500).json({ message: "Error getting user: " + err.message });
+
+    }
+};
 exports.withdrawShares = async (req, res) => {
     try {
         const id = req.params.id; // Assuming this is the shareholder's ID
@@ -333,28 +390,27 @@ exports.withdrawShares = async (req, res) => {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
 
-        // Check if shares have already been withdrawn
-        const sharesToWithdraw = shareholder.share.filter(share => !share.withdrawn);
-        if (sharesToWithdraw.length === 0) {
+        // Check if the share has already been withdrawn
+        if (shareholder.share && shareholder.share.withdrawn) {
             const response = {
                 shareholder: shareholder,
-                shares: sharesToWithdraw,
+                share: shareholder.share, // Adjusted to treat share as a singular object
                 link: `/printsavingswithdrawal/${shareholder.id}`
             };
             return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
         }
 
-        // Withdraw shares
-        for (const share of sharesToWithdraw) {
-            await Share.findByIdAndUpdate(share._id, { $set: { withdrawn: true } });
-            // Optionally, create a log for each withdrawn share
+        // Withdraw share
+        if (shareholder.share) {
+            await Share.findByIdAndUpdate(shareholder.share._id, { $set: { withdrawn: true } });
+            // Optionally, create a log for the withdrawn share
         }
 
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
         const response = {
             shareholder: shareholder,
-            shares: sharesToWithdraw,
+            share: shareholder.share, // Adjusted to treat share as a singular object
             link: `/printshareswithdrawal/${shareholder.id}`
         };
         res.status(200).send({ status: 0, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.`, response });
@@ -363,3 +419,4 @@ exports.withdrawShares = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+

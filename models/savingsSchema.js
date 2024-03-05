@@ -22,7 +22,7 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     const purchaseYear = purchaseDate.getFullYear();
     const currentYear = now.getFullYear();
     const withdrawn = this.withdrawn
-    let currentAmount = this.initialAmount;
+    let currentAmount = this.currentAmount;
 
     if (withdrawn) {
         return this.currentAmount
@@ -56,10 +56,10 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
         // currentAmount *= 10 //For Testing purposes
         currentAmount *= Math.pow(1 + annualIncreaseRate, yearFraction);
     }
-    
+
     console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
 
-    return currentAmount;
+    return Number(currentAmount);
 };
 // This is to disregard the purchase date
 // savingsSchema.methods.calculateCurrentPrice = async function () {
@@ -91,7 +91,7 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
 //         // Calculate the appreciation for the year
 //         currentAmount *= Math.pow(1 + annualIncreaseRate, yearFraction);
 //     }
-    
+
 //     console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
 //     return currentAmount;
 // };
