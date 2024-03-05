@@ -117,28 +117,29 @@ passport.deserializeUser(async function (id, done) {
         done(error);
     }
 });
-cron.schedule('* * * * *', async () => {
-    const shares = await Share.find();
-    for (let share of shares) {
-        try {
-            const currentAmount = await share.calculateCurrentPrice();
-            await Share.updateOne({ _id: share._id }, { $set: { currentAmount: currentAmount } });
-        } catch (err) {
-            console.error('Error updating share:', err);
-        }
-    }
-    console.log('Updated current prices for all shares.');
-    const savings = await Saving.find();
-    for (let saving of savings) {
-        try {
-            const currentAmount = await saving.calculateCurrentPrice();
-            await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
-        } catch (err) {
-            console.error('Error updating share:', err);
-        }
-    }
-    console.log('Updated current prices for all Savings.');
-});
+// cron.schedule('* * * * *', async () => {
+//     const shares = await Share.find();
+//     for (let share of shares) {
+//         try {
+//             const currentAmount = await share.calculateCurrentPrice();
+//             await Share.updateOne({ _id: share._id }, { $set: { currentAmount: currentAmount } });
+//         } catch (err) {
+//             console.error('Error updating share:', err);
+//         }
+//     }
+//     console.log('Updated current prices for all shares.');
+//     const savings = await Saving.find();
+//     for (let saving of savings) {
+//         try {
+//             const currentAmount = await saving.calculateCurrentPrice();
+//             console.log("This is the current amount", currentAmount);
+//             await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
+//         } catch (err) {
+//             console.error('Error updating share:', err);
+//         }
+//     }
+//     console.log('Updated current prices for all Savings.');
+// });
 app.use(logRequestsAndResponses);
 
 
