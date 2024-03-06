@@ -24,6 +24,22 @@ const generateToken = (user) => {
 function sanitizeInput(input) {
     return xss(input);
 }
+exports.getActiveUsersCount = async (req, res) => {
+    try {
+        const count = await User.countDocuments({ isActive: true });
+        res.status(200).send({ count: count });
+    } catch (err) {
+        res.status(500).json("Message: " + err.message)
+    }
+}
+exports.getInActiveUsersCount = async (req, res) => {
+    try {
+        const count = await User.countDocuments({ isActive: false });
+        res.status(200).send({ count: count });
+    } catch (err) {
+        res.status(500).json("Message: " + err.message)
+    }
+}
 exports.createUser = async (req, res) => {
     try {
         // Assuming sanitizeInput is a function you've defined to sanitize inputs
