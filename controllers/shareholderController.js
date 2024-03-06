@@ -15,14 +15,36 @@ exports.getAllShareholders = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
         const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const serial = req.query.serial || ''
         let queryConditions = {};
         if (status) {
             queryConditions.status = status;
         }
-        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').populate('address').skip(skip)
-            .limit(resultsPerPage);;
+        if (fName) {
+            queryConditions.fName = { $regex: fName, $options: 'i' };
+        }
+        if (civilId) {
+            queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        }
+        if (membershipStatus) {
+            queryConditions.membershipStatus = membershipStatus;
+        }
+        if (lName) {
+            queryConditions.lName = { $regex: lName, $options: 'i' };
+        }
+        if (serial) {
+            // Assuming serial is a number and should exactly match
+            queryConditions.serial = parseInt(serial, 10);
+        }
 
-        const total = await Shareholder.countDocuments()
+        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').populate('address').skip(skip)
+            .limit(resultsPerPage);
+
+        const total = await Shareholder.countDocuments(queryConditions)
         res.status(200).send({
             data: shareholders,
             count: total,
@@ -30,6 +52,24 @@ exports.getAllShareholders = async (req, res) => {
         });
     } catch (err) {
         res.status(500).send({ message: err.message })
+    }
+}
+exports.getShareholderActiveCount = async (req, res) => {
+    try {
+        const count = await Shareholder.countDocuments({ status: 0, membershipStatus: 0 });
+        res.status(200).send({ count: count });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+
+    }
+}
+exports.getShareholderCount = async (req, res) => {
+    try {
+        const count = await Shareholder.countDocuments();
+        res.status(200).send({ count: count });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+
     }
 }
 exports.getShareholderById = async (req, res) => {
@@ -183,7 +223,7 @@ exports.editShareholder = async (req, res) => {
                 savings.withdrawn = true;
                 await savings.save();
             }
-            const shar = await Share.findById(share._id);
+            const shar = await Share.findById(shareholder?.share?._id);
             if (shar) {
                 shar.withdrawn = true;
                 await shar.save();
