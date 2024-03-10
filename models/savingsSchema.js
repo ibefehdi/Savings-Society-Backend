@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const savingsConfigSchema = require('./savingsConfigSchema')
+const savingsConfigSchema = require('./savingsConfigSchema');
+const Amanat = require('./amanatSchema')
 const adminIdSchema = new mongoose.Schema({
     admin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     amountBeforeChange: { type: Number },
@@ -11,56 +12,60 @@ const savingsSchema = new mongoose.Schema({
     initialAmount: { type: Number },
     currentAmount: { type: Number },
     date: { type: Date },
+    lastUpdateDate: { type: Date },
     withdrawn: { type: Boolean },
     maxReached: { type: Boolean },
+    amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
     adminId: [adminIdSchema],
 }, { timestamps: true });
 
-savingsSchema.methods.calculateCurrentPrice = async function () {
-    const now = new Date();
-    const purchaseDate = this.date;
-    const purchaseYear = purchaseDate.getFullYear();
-    const currentYear = now.getFullYear();
-    const withdrawn = this.withdrawn
-    let currentAmount = this.currentAmount;
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
+//     const purchaseDate = this.date;
+//     const purchaseYear = purchaseDate.getFullYear();
+//     const currentYear = now.getFullYear();
+//     const withdrawn = this.withdrawn;
+//     let currentAmount = this.currentAmount; // Existing current amount before calculation
 
-    if (withdrawn) {
-        return this.currentAmount
-    }
-    for (let year = purchaseYear; year <= currentYear; year++) {
-        // Fetch the share configuration for the year
-        const shareConfig = await savingsConfigSchema.findOne({ year: year });
-        if (!shareConfig) {
-            console.log(`No savings configuration found for year ${year}`);
-            return currentAmount; // Return the initial amount if no config is found for the purchase year
-        }
-        if (withdrawn) {
-            console.log('The user has withdrawn the savings')
-            console.log("Withdrawn amount: ", currentAmount);
-            return currentAmount;
-        }
+//     if (withdrawn) {
+//         return currentAmount; // If already withdrawn, no changes are made
+//     }
 
-        const annualIncreaseRate = shareConfig.individualSharePercentage / 100; // Convert percentage to decimal
+//     let calculatedAmount = currentAmount; // Start with the current amount
 
-        // Determine the time span within the year to apply the rate
-        let yearFraction = 1;
-        if (year === purchaseYear) {
-            // If the purchase year, calculate the fraction of the year from purchase date to year end
-            yearFraction = (new Date(year + 1, 0, 1) - purchaseDate) / (1000 * 60 * 60 * 24 * 365);
-        } else if (year === currentYear) {
-            // If the current year, calculate the fraction of the year from year start to now
-            yearFraction = (now - new Date(year, 0, 1)) / (1000 * 60 * 60 * 24 * 365);
-        }
+//     for (let year = purchaseYear; year <= currentYear; year++) {
+//         // Fetch the share configuration for the year
+//         const shareConfig = await savingsConfigSchema.findOne({ year: year });
+//         if (!shareConfig) {
+//             console.log(`No savings configuration found for year ${year}`);
+//             break; // Break the loop and keep the calculated amount as is
+//         }
 
-        // Calculate the appreciation for the year or fraction thereof
-        // currentAmount *= 10 //For Testing purposes
-        currentAmount *= Math.pow(1 + annualIncreaseRate, yearFraction);
-    }
+//         const annualIncreaseRate = shareConfig.individualSharePercentage / 100; // Convert percentage to decimal
 
-    console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
+//         let yearFraction = 1; // Assume full year by default
+//         if (year === purchaseYear) {
+//             // Calculate fraction of the year for the purchase year
+//             yearFraction = (new Date(year + 1, 0, 1) - purchaseDate) / (1000 * 60 * 60 * 24 * 365);
+//         } else if (year === currentYear) {
+//             // Calculate fraction of the year for the current year
+//             yearFraction = (now - new Date(year, 0, 1)) / (1000 * 60 * 60 * 24 * 365);
+//         }
 
-    return Number(currentAmount);
-};
+//         // Calculate the amount considering the annual increase rate
+//         calculatedAmount *= Math.pow(1 + annualIncreaseRate, yearFraction);
+//     }
+
+//     // Determine the difference
+//     let difference = calculatedAmount - currentAmount;
+//     console.log("This is the difference", difference);
+//     // If the difference is significant, update the current amount
+//     currentAmount += difference;
+
+//     console.log(`Updated current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
+//     return Number(currentAmount.toFixed(2));
+// };
+
 // This is to disregard the purchase date
 // savingsSchema.methods.calculateCurrentPrice = async function () {
 //     const now = new Date();
@@ -95,6 +100,54 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
 //     console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
 //     return currentAmount;
 // };
+savingsSchema.methods.calculateCurrentPrice = async function () {
+    const now = new Date();
+    let lastUpdateDate = this.lastUpdateDate ? new Date(this.lastUpdateDate) : this.date;
+    const timeSinceLastUpdate = now - lastUpdateDate;
+    const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+
+    if (this.withdrawn) {
+        return this.currentAmount;
+    }
+
+    if (yearFractionSinceLastUpdate > 0) {
+        const shareConfig = await savingsConfigSchema.findOne({ year: now.getFullYear() });
+        if (!shareConfig) {
+            console.log(`No savings configuration found for this year.`);
+            this.lastUpdateDate = now;
+            await this.save();
+            return this.currentAmount;
+        }
+
+        const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+        let calculatedAmount = this.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+
+        if (calculatedAmount > 1000) {
+            const excessAmount = calculatedAmount - 1000;
+            calculatedAmount = 1000; // Reset currentAmount to 1000
+
+            let amanat;
+            if (this.amanat) {
+                amanat = await Amanat.findById(this.amanat);
+            } else {
+                amanat = new Amanat({ amount: 0, date: new Date() });
+            }
+
+            amanat.amount += excessAmount;
+            await amanat.save();
+
+            // Update the reference
+            this.amanat = amanat._id;
+        }
+
+        this.currentAmount = calculatedAmount;
+        this.lastUpdateDate = now;
+        await this.save();
+    }
+
+    return this.currentAmount;
+};
+
 
 
 module.exports = mongoose.model('Savings', savingsSchema);
