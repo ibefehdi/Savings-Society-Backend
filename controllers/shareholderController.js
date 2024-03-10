@@ -19,7 +19,7 @@ exports.getAllShareholders = async (req, res) => {
         const lName = req.query.lName || '';
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
-        const serial = req.query.serial || ''
+        const serial = req.query.serial || '';
         let queryConditions = {};
         if (status) {
             queryConditions.status = status;
@@ -37,23 +37,33 @@ exports.getAllShareholders = async (req, res) => {
             queryConditions.lName = { $regex: lName, $options: 'i' };
         }
         if (serial) {
-            // Assuming serial is a number and should exactly match
             queryConditions.serial = parseInt(serial, 10);
         }
 
-        const shareholders = await Shareholder.find(queryConditions).populate('savings').populate('share').populate('address').skip(skip)
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate({
+                path: 'savings', // First, populate the savings document
+                populate: {
+                    path: 'amanat', // Within savings, further populate amanat
+                    model: 'Amanat' // Ensure you specify the correct model name for amanat if it's not automatically inferred
+                }
+            })
+            .populate('share')
+            .populate('address')
+            .skip(skip)
             .limit(resultsPerPage);
 
-        const total = await Shareholder.countDocuments(queryConditions)
+        const total = await Shareholder.countDocuments(queryConditions);
         res.status(200).send({
             data: shareholders,
             count: total,
             metadata: { total: total }
         });
     } catch (err) {
-        res.status(500).send({ message: err.message })
+        res.status(500).send({ message: err.message });
     }
-}
+};
+
 exports.getShareholderActiveCount = async (req, res) => {
     try {
         const count = await Shareholder.countDocuments({ status: 0, membershipStatus: 0 });
