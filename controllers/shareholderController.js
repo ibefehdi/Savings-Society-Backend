@@ -1,6 +1,7 @@
 const Shareholder = require('../models/shareholderSchema');
 const Address = require('../models/addressSchema');
 const Share = require('../models/shareSchema');
+const Amanat = require('../models/amanatSchema');
 const Saving = require('../models/savingsSchema');
 const WithdrawalLog = require('../models/withdrawalLogSchema')
 const xss = require('xss');
@@ -367,12 +368,118 @@ exports.withdrawWealth = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+exports.withdrawAmanat = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const userId = req.body.userId;
+        const amountToWithdraw = req.body.amountToWithdraw;
+        const shareholder = await Shareholder.findOne({ _id: id }).populate({
+            path: 'savings',
+            populate: {
+                path: 'amanat',
+                model: 'Amanat'
+            }
+        });
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+        console.log("This is amanat", shareholder.savings.amanat);
+        // Check if savings have already been withdrawn
+        if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
+            const response = {
+                shareholder: shareholder,
+                savings: shareholder.savings.amanat,
+                link: `/printsavingswithdrawal/${shareholder.id}`
+            };
+            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        }
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
 
+        if (shareholder.savings) {
+            // Retrieve the current amount from the savings
+            const currentAmount = shareholder.savings.amanat.amount;
+            console.log("This is the current amount", currentAmount);
+            // Check if there's enough balance to withdraw
+            if (amountToWithdraw > currentAmount) {
+                return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
+            }
+
+            // Determine whether the withdrawn flag should be true or false
+            const isFullyWithdrawn = amountToWithdraw === currentAmount;
+            console.log("this is the fully withdrwan", isFullyWithdrawn);
+            // Update the savings document with the new current amount and set withdrawn accordingly
+            await Amanat.findByIdAndUpdate(shareholder.savings.amanat._id, {
+                $set: {
+                    amount: currentAmount - amountToWithdraw,
+                    withdrawn: isFullyWithdrawn
+                }
+            });
+        }
+
+        const updatedSavings = await Amanat.findById(shareholder.savings.amanat._id);
+        const withdrawalLog = new WithdrawalLog({
+            shareholder: shareholder._id,
+            saving: updatedSavings._id,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        });
+
+        // Save the WithdrawalLog to the database
+        await withdrawalLog.save();
+        const response = {
+            shareholder: shareholder,
+            amanat: updatedSavings,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        };
+        res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.` });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.getUserAmanat = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const shareholder = await Shareholder.findOne({ _id: id }).populate({
+            path: 'savings',
+            populate: {
+                path: 'amanat',
+                model: 'Amanat'
+            }
+        });
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+
+
+
+        const updatedSavings = shareholder.savings.amanat
+        const withdrawalLog = new WithdrawalLog({
+            shareholder: shareholder._id,
+            saving: updatedSavings._id,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        });
+
+        // Save the WithdrawalLog to the database
+        await withdrawalLog.save();
+        const response = {
+
+            amanat: updatedSavings,
+
+        };
+        res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.` });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
 exports.withdrawSavings = async (req, res) => {
     try {
         const id = req.params.id;
         const userId = req.body.userId;
-
+        const amountToWithdraw = req.body.amountToWithdraw;
         const shareholder = await Shareholder.findOne({ _id: id }).populate('savings');
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
@@ -391,8 +498,26 @@ exports.withdrawSavings = async (req, res) => {
         await shareholder.save();
 
         if (shareholder.savings) {
-            await Saving.findByIdAndUpdate(shareholder.savings._id, { $set: { withdrawn: true } });
+            // Retrieve the current amount from the savings
+            const currentAmount = shareholder.savings.currentAmount;
+
+            // Check if there's enough balance to withdraw
+            if (amountToWithdraw > currentAmount) {
+                return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
+            }
+
+            // Determine whether the withdrawn flag should be true or false
+            const isFullyWithdrawn = amountToWithdraw === currentAmount;
+
+            // Update the savings document with the new current amount and set withdrawn accordingly
+            await Saving.findByIdAndUpdate(shareholder.savings._id, {
+                $set: {
+                    currentAmount: currentAmount - amountToWithdraw,
+                    withdrawn: isFullyWithdrawn
+                }
+            });
         }
+
         const updatedSavings = await Saving.findById(shareholder.savings._id);
         const withdrawalLog = new WithdrawalLog({
             shareholder: shareholder._id,
@@ -416,12 +541,18 @@ exports.withdrawSavings = async (req, res) => {
 exports.getShareholderFinancials = async (req, res) => {
     try {
         const id = req.params.id;
-        const shareholder = await Shareholder.findOne({ _id: id }).populate('share').populate('savings').populate('amanat');
+        const shareholder = await Shareholder.findOne({ _id: id }).populate('share').populate({
+            path: 'savings',
+            populate: {
+                path: 'amanat',
+                model: 'Amanat'
+            }
+        });
         console.log(shareholder);
         const response = {
             savings: shareholder.savings,
             shares: shareholder.share,
-            amanat: shareholder.amanat
+            amanat: shareholder.savings.amanat
         }
         res.status(200).send({ status: 0, response, message: "The financials of the user have been sent" })
     } catch (err) {
@@ -432,8 +563,9 @@ exports.getShareholderFinancials = async (req, res) => {
 };
 exports.withdrawShares = async (req, res) => {
     try {
-        const id = req.params.id; // Assuming this is the shareholder's ID
+        const id = req.params.id;
         const userId = req.body.userId;
+        const amountToWithdraw = req.body.amountToWithdraw;
 
         const shareholder = await Shareholder.findById(id).populate('share');
         if (!shareholder) {
@@ -444,7 +576,7 @@ exports.withdrawShares = async (req, res) => {
         if (shareholder.share && shareholder.share.withdrawn) {
             const response = {
                 shareholder: shareholder,
-                share: shareholder.share, // Adjusted to treat share as a singular object
+                share: shareholder.share,
                 link: `/printsavingswithdrawal/${shareholder.id}`
             };
             return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
@@ -452,15 +584,30 @@ exports.withdrawShares = async (req, res) => {
 
         // Withdraw share
         if (shareholder.share) {
-            await Share.findByIdAndUpdate(shareholder.share._id, { $set: { withdrawn: true } });
-            // Optionally, create a log for the withdrawn share
+            const currentAmount = shareholder.share.currentAmount;
+
+            // Check if there's enough balance to withdraw
+            if (amountToWithdraw > currentAmount) {
+                return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
+            }
+
+            // Determine whether the withdrawn flag should be true or false
+            const isFullyWithdrawn = amountToWithdraw === currentAmount;
+
+            // Update the savings document with the new current amount and set withdrawn accordingly
+            await Share.findByIdAndUpdate(shareholder.share._id, {
+                $set: {
+                    currentAmount: currentAmount - amountToWithdraw,
+                    withdrawn: isFullyWithdrawn
+                }
+            });
         }
 
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
         const response = {
             shareholder: shareholder,
-            share: shareholder.share, // Adjusted to treat share as a singular object
+            share: shareholder.share,
             link: `/printshareswithdrawal/${shareholder.id}`
         };
         res.status(200).send({ status: 0, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their Savings.`, response });
