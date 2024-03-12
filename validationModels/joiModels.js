@@ -20,7 +20,25 @@ const joiUserSchema = Joi.object({
             view: Joi.boolean().default(false).default(null),
             edit: Joi.boolean().default(false).default(null),
             delete: Joi.boolean().default(false).default(null)
-        })
+        }),
+        amanat: Joi.object({
+            create: Joi.boolean().default(false).default(null),
+            view: Joi.boolean().default(false).default(null),
+            edit: Joi.boolean().default(false).default(null),
+            delete: Joi.boolean().default(false).default(null)
+        }),
+        deposit: Joi.object({
+            share: Joi.boolean().default(false).default(null),
+            savings: Joi.boolean().default(false).default(null),
+        }),
+        withdrawal: Joi.object({
+            share: Joi.boolean().default(false).default(null),
+            savings: Joi.boolean().default(false).default(null),
+        }),
+        financialConfiguration: Joi.object({
+            share: Joi.boolean().default(false).default(null),
+            savings: Joi.boolean().default(false).default(null),
+        }),
     })
 });
 const joiShareholderSchema = Joi.object({

@@ -23,6 +23,24 @@ const userSchema = new mongoose.Schema({
             edit: { type: Boolean, default: false, default: null },
             delete: { type: Boolean, default: false, default: null }
         },
+        deposit: {
+            shares: { type: Boolean, default: false, default: null },
+            savings: { type: Boolean, default: false, default: null },
+        },
+        withdrawal: {
+            shares: { type: Boolean, default: false, default: null },
+            savings: { type: Boolean, default: false, default: null },
+        },
+        financialConfiguration: {
+            shares: { type: Boolean, default: false, default: null },
+            savings: { type: Boolean, default: false, default: null },
+        },
+        amanat: {
+            create: { type: Boolean, default: false, default: null },
+            view: { type: Boolean, default: false, default: null },
+            edit: { type: Boolean, default: false, default: null },
+            delete: { type: Boolean, default: false, default: null }
+        }
     }
 });
 module.exports = mongoose.model('User', userSchema);

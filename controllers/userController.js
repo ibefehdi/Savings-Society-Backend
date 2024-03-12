@@ -55,6 +55,27 @@ exports.createUser = async (req, res) => {
                 view: req.body.permissions?.user?.view ?? false,
                 edit: req.body.permissions?.user?.edit ?? false,
                 delete: req.body.permissions?.user?.delete ?? false
+            },
+            amanat: {
+                create: req.body.permissions?.amanat?.create ?? false,
+                view: req.body.permissions?.amanat?.view ?? false,
+                edit: req.body.permissions?.amanat?.edit ?? false,
+                delete: req.body.permissions?.amanat?.delete ?? false
+            },
+            withdrawal: {
+                shares: req?.body?.permissions?.withdrawal?.share ?? false,
+                savings: req?.body?.permissions?.withdrawal?.savings ?? false
+
+            },
+            deposit: {
+                shares: req?.body?.permissions?.deposit?.share ?? false,
+                savings: req?.body?.permissions?.deposit?.savings ?? false
+
+            },
+            financialConfiguration: {
+                shares: req?.body?.permissions?.financialConfiguration?.share ?? false,
+                savings: req?.body?.permissions?.financialConfiguration?.savings ?? false
+
             }
         };
 
@@ -187,6 +208,27 @@ exports.editUser = async (req, res) => {
             view: req.body.permissions?.user?.view ?? false,
             edit: req.body.permissions?.user?.edit ?? false,
             delete: req.body.permissions?.user?.delete ?? false
+        },
+        amanat: {
+            create: req.body.permissions?.amanat?.create ?? false,
+            view: req.body.permissions?.amanat?.view ?? false,
+            edit: req.body.permissions?.amanat?.edit ?? false,
+            delete: req.body.permissions?.amanat?.delete ?? false
+        },
+        withdrawal: {
+            shares: req?.body?.permissions?.withdrawal?.share ?? false,
+            savings: req?.body?.permissions?.withdrawal?.savings ?? false
+
+        },
+        deposit: {
+            shares: req?.body?.permissions?.deposit?.share ?? false,
+            savings: req?.body?.permissions?.deposit?.savings ?? false
+
+        },
+        financialConfiguration: {
+            shares: req?.body?.permissions?.financialConfiguration?.share ?? false,
+            savings: req?.body?.permissions?.financialConfiguration?.savings ?? false
+
         }
     };
     try {

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { joiShareholderSchema } = require("../validationModels/joiModels")
 const validateRequiredFields = require('../middleware/middleware');
-const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount } = require('../controllers/shareholderController');
+const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat } = require('../controllers/shareholderController');
 
 /**
  * @openapi
@@ -21,7 +21,7 @@ router.post("/shareholder/withdrawsavings/:id", withdrawSavings)
 router.post("/shareholder/withdrawshares/:id", withdrawShares)
 router.post("/shareholder/depositsavings/:id", addSavingsToShareholder)
 router.post("/shareholder/depositshares/:id", addSharesToShareholder)
-
+router.post("/shareholder/withdrawamanat/:id", withdrawAmanat)
 //PUT Routes
 router.put("/shareholder/:id", editShareholder)
 
@@ -30,5 +30,6 @@ router.get("/shareholders", getAllShareholders)
 router.get("/shareholder/:id", getShareholderById)
 router.get("/shareholder/financials/:id", getShareholderFinancials)
 router.get("/shareholdercount/", getShareholderCount)
+router.get("/getShareholderAmanat/:id", getUserAmanat)
 router.get("/shareholderactivecount/", getShareholderActiveCount)
 module.exports = router;
