@@ -47,6 +47,8 @@ const joiShareholderSchema = Joi.object({
     arabFName: Joi.string(),
     arabLName: Joi.string(),
     dob: Joi.string().required(),
+    quitDate: Joi.string().required(),
+    joinDate: Joi.string().required(),
     civilId: Joi.string().required(),
     status: Joi.number().required(),
     adminId: Joi.array().required(),

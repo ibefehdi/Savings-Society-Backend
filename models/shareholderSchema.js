@@ -16,6 +16,8 @@ const shareholderSchema = new mongoose.Schema({
     arabFName: { type: String },
     lName: { type: String },
     arabLName: { type: String },
+    joinDate: { type: Date },
+    quitDate: { type: Date },
     DOB: { type: Date },
     civilId: { type: String, required: true, unique: true },
     status: { type: Number, enum: [0, 1, 2] }, //0 is active, 1 is inactive/amount withdrawn, 2 is Expired/Death
