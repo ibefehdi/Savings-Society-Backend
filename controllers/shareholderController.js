@@ -163,6 +163,8 @@ exports.createShareholder = async (req, res) => {
             zipCode: sanitizeInput(req.body.zipCode),
             Area: sanitizeInput(req.body.area),
             Country: sanitizeInput(req.body.country),
+            joinDate: sanitizeInput(req.body.joinDate),
+            quitDate: sanitizeInput(req.body.quitDate),
             address: address?._id,
             share: share?._id,
             savings: savings?._id
@@ -209,6 +211,7 @@ exports.editShareholder = async (req, res) => {
         shareholder.Country = sanitizeInput(req.body.country) || shareholder.Country;
         shareholder.arabLName = sanitizeInput(req.body.arabLName) || shareholder.arabLName;
         shareholder.arabFName = sanitizeInput(req.body.arabFName) || shareholder.arabFName;
+        shareholder.quitDate = new Date(req.body.quitDate) || shareholder.quitDate;
         shareholder.lastEditedBy.push(userId);
         // Update the address associated with the shareholder
         if (shareholder.address) {
