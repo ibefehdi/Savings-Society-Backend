@@ -20,6 +20,7 @@ exports.getAllShareholders = async (req, res) => {
         const lName = req.query.lName || '';
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
         const serial = req.query.serial || '';
         let queryConditions = {};
         if (status) {
@@ -40,20 +41,22 @@ exports.getAllShareholders = async (req, res) => {
         if (serial) {
             queryConditions.serial = parseInt(serial, 10);
         }
+        if (gender) {
+            queryConditions.gender = gender;
+        }
 
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
-                path: 'savings', // First, populate the savings document
+                path: 'savings',
                 populate: {
-                    path: 'amanat', // Within savings, further populate amanat
-                    model: 'Amanat' // Ensure you specify the correct model name for amanat if it's not automatically inferred
+                    path: 'amanat',
+                    model: 'Amanat'
                 }
             })
             .populate('share')
             .populate('address')
             .skip(skip)
             .limit(resultsPerPage);
-
         const total = await Shareholder.countDocuments(queryConditions);
         res.status(200).send({
             data: shareholders,
@@ -152,6 +155,7 @@ exports.createShareholder = async (req, res) => {
             civilId: sanitizeInput(req.body.civilId),
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
+            gender: sanitizeInput(req.body.gender),
             status: req.body.status,
             membershipStatus: 0,
             dateOfDeath: null,
@@ -212,6 +216,7 @@ exports.editShareholder = async (req, res) => {
         shareholder.arabLName = sanitizeInput(req.body.arabLName) || shareholder.arabLName;
         shareholder.arabFName = sanitizeInput(req.body.arabFName) || shareholder.arabFName;
         shareholder.quitDate = new Date(req.body.quitDate) || shareholder.quitDate;
+        shareholder.gender = sanitizeInput(req.body.gender) || shareholder.gender;
         shareholder.lastEditedBy.push(userId);
         // Update the address associated with the shareholder
         if (shareholder.address) {
