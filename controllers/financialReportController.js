@@ -31,11 +31,14 @@ exports.getAllShareholderReport = async (req, res) => {
             queryConditions['serial'] = parseInt(req.query.serial, 10);
         }
         if (req.query.gender) {
-            queryConditions['gender'] = req.query.gender;
+            queryConditions['gender'] = { $regex: req.query.gender, $options: 'i' };
         }
+
+        console.log('queryConditions:', queryConditions);
 
         const shareholders = await Shareholder.aggregate([
             { $match: queryConditions },
+
             {
                 $lookup: {
                     from: 'savings',
@@ -55,6 +58,7 @@ exports.getAllShareholderReport = async (req, res) => {
                     ],
                 },
             },
+            { $unwind: '$savings' },
             {
                 $lookup: {
                     from: 'shares',
@@ -63,7 +67,7 @@ exports.getAllShareholderReport = async (req, res) => {
                     as: 'share',
                 },
             },
-            { $unwind: '$savings' },
+
             { $unwind: '$share' },
 
             {
@@ -78,10 +82,9 @@ exports.getAllShareholderReport = async (req, res) => {
                     'savings.amanat.amount': 1,
                     shareIncrease: { $subtract: ['$share.currentAmount', '$share.initialAmount'] },
                     savingsIncrease: { $subtract: ['$savings.currentAmount', '$savings.initialAmount'] },
+                    total: { $sum: ['$savings.currentAmount', '$share.currentAmount', '$savings.amanat.amount'] }
                 },
             }
-
-
         ]);
 
         const total = await Shareholder.countDocuments(queryConditions);
