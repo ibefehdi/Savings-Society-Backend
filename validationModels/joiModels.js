@@ -66,6 +66,7 @@ const joiShareholderSchema = Joi.object({
     savingsInitialPrice: Joi.number(),
     area: Joi.string(),
     country: Joi.string(),
+    gender: Joi.string(),
 })
 module.exports.joiUserSchema = joiUserSchema;
 module.exports.joiShareholderSchema = joiShareholderSchema
