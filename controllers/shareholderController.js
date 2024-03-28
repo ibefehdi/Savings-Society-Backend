@@ -4,6 +4,9 @@ const Share = require('../models/shareSchema');
 const Amanat = require('../models/amanatSchema');
 const Saving = require('../models/savingsSchema');
 const WithdrawalLog = require('../models/withdrawalLogSchema')
+const { stringify } = require('csv-stringify');
+const moment = require('moment');
+const XLSX = require('xlsx');
 const xss = require('xss');
 
 
@@ -63,6 +66,79 @@ exports.getAllShareholders = async (req, res) => {
             count: total,
             metadata: { total: total }
         });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
+exports.getAllShareholdersFormatted = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
+        const serial = req.query.serial || '';
+        let queryConditions = {};
+        if (status) {
+            queryConditions.status = status;
+        }
+        if (fName) {
+            queryConditions.fName = { $regex: fName, $options: 'i' };
+        }
+        if (civilId) {
+            queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        }
+        if (membershipStatus) {
+            queryConditions.membershipStatus = membershipStatus;
+        }
+        if (lName) {
+            queryConditions.lName = { $regex: lName, $options: 'i' };
+        }
+        if (serial) {
+            queryConditions.serial = parseInt(serial, 10);
+        }
+        if (gender) {
+            queryConditions.gender = gender;
+        }
+
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate({
+                path: 'savings',
+                populate: {
+                    path: 'amanat',
+                    model: 'Amanat'
+                }
+            })
+            .populate('share')
+            .populate('address')
+
+
+
+        const csvStringifier = stringify({ header: true });
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
+        csvStringifier.pipe(res);
+
+        shareholders.forEach(shareholder => {
+            const shareholderObject = shareholder.toObject();
+
+            // Directly format the ISO 8601 date string using moment
+            if (shareholderObject.DOB) {
+                shareholderObject.DOB = moment(shareholderObject.DOB).format('DD-MM-YYYY');
+            } else {
+                // Handle missing DOB.
+                shareholderObject.DOB = 'Missing date';
+            }
+
+            csvStringifier.write(shareholderObject);
+        });
+
+        csvStringifier.end();
+
     } catch (err) {
         res.status(500).send({ message: err.message });
     }
