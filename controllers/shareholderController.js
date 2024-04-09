@@ -227,6 +227,8 @@ exports.createShareholder = async (req, res) => {
             arabFName: sanitizeInput(req.body.arabFName),
             lName: sanitizeInput(req.body.lName),
             arabLName: sanitizeInput(req.body.arabLName),
+            fullName: sanitizeInput(req.body.fullName),
+            membersCode: req.body.membersCode,
             DOB: sanitizeInput(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             ibanNumber: sanitizeInput(req.body.ibanNumber),
