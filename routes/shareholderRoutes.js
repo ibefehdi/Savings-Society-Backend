@@ -15,7 +15,7 @@ const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWea
  */
 
 //POST Routes
-router.post("/shareholder", validateRequiredFields(joiShareholderSchema), createShareholder)
+router.post("/shareholder", createShareholder)
 router.post("/shareholder/withdraw/:id", withdrawWealth);
 router.post("/shareholder/withdrawsavings/:id", withdrawSavings)
 router.post("/shareholder/withdrawshares/:id", withdrawShares)
