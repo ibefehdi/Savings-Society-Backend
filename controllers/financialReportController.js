@@ -12,80 +12,69 @@ exports.getAllShareholderReport = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
         let queryConditions = {};
-        if (req.query.status) {
-            queryConditions['status'] = req.query.status;
-        }
-        if (req.query.fName) {
-            queryConditions['fName'] = { $regex: req.query.fName, $options: 'i' };
-        }
-        if (req.query.civilId) {
-            queryConditions['civilId'] = { $regex: `^${req.query.civilId}`, $options: 'i' };
-        }
-        if (req.query.membershipStatus) {
-            queryConditions['membershipStatus'] = req.query.membershipStatus;
-        }
-        if (req.query.lName) {
-            queryConditions['lName'] = { $regex: req.query.lName, $options: 'i' };
-        }
-        if (req.query.serial) {
-            queryConditions['serial'] = parseInt(req.query.serial, 10);
-        }
-        if (req.query.gender) {
-            queryConditions['gender'] = { $regex: req.query.gender, $options: 'i' };
-        }
+
+        // Build query conditions dynamically
+        if (req.query.status) queryConditions['status'] = req.query.status;
+        if (req.query.fName) queryConditions['fName'] = { $regex: req.query.fName, $options: 'i' };
+        if (req.query.civilId) queryConditions['civilId'] = { $regex: `^${req.query.civilId}`, $options: 'i' };
+        if (req.query.membershipStatus) queryConditions['membershipStatus'] = req.query.membershipStatus;
+        if (req.query.lName) queryConditions['lName'] = { $regex: req.query.lName, $options: 'i' };
+        if (req.query.serial) queryConditions['serial'] = parseInt(req.query.serial, 10);
+        if (req.query.gender) queryConditions['gender'] = { $regex: req.query.gender, $options: 'i' };
 
         console.log('queryConditions:', queryConditions);
 
-        const shareholders = await Shareholder.aggregate([
+        const pipeline = [
             { $match: queryConditions },
-
             {
                 $lookup: {
                     from: 'savings',
                     localField: 'savings',
                     foreignField: '_id',
-                    as: 'savings',
+                    as: 'savingsDetails',
                     pipeline: [
                         {
                             $lookup: {
                                 from: 'amanats',
                                 localField: 'amanat',
                                 foreignField: '_id',
-                                as: 'amanat',
-                            },
+                                as: 'amanatDetails'
+                            }
                         },
-                        { $unwind: '$amanat' },
-                    ],
-                },
+                        { $unwind: { path: '$amanatDetails', preserveNullAndEmptyArrays: true } }
+                    ]
+                }
             },
-            { $unwind: '$savings' },
+            { $unwind: { path: '$savingsDetails', preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
                     from: 'shares',
                     localField: 'share',
                     foreignField: '_id',
-                    as: 'share',
-                },
+                    as: 'shareDetails'
+                }
             },
-
-            { $unwind: '$share' },
-
+            { $unwind: { path: '$shareDetails', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     serial: 1,
                     civilId: 1,
                     fullName: { $concat: ['$fName', ' ', '$lName'] },
-                    'share.currentAmount': 1,
-                    'share.initialAmount': 1,
-                    'savings.currentAmount': 1,
-                    'savings.initialAmount': 1,
-                    'savings.amanat.amount': 1,
-                    shareIncrease: { $subtract: ['$share.currentAmount', '$share.initialAmount'] },
-                    savingsIncrease: { $subtract: ['$savings.currentAmount', '$savings.initialAmount'] },
-                    total: { $sum: ['$savings.currentAmount', '$share.currentAmount', '$savings.amanat.amount'] }
-                },
-            }
-        ]);
+                    'shareDetails.currentAmount': 1,
+                    'shareDetails.initialAmount': 1,
+                    'savingsDetails.currentAmount': 1,
+                    'savingsDetails.initialAmount': 1,
+                    'savingsDetails.amanatDetails.amount': 1,
+                    shareIncrease: { $subtract: ['$shareDetails.currentAmount', '$shareDetails.initialAmount'] },
+                    savingsIncrease: { $subtract: ['$savingsDetails.currentAmount', '$savingsDetails.initialAmount'] },
+                    total: { $sum: ['$savingsDetails.currentAmount', '$shareDetails.currentAmount', '$savingsDetails.amanatDetails.amount'] }
+                }
+            },
+            { $skip: skip },
+            
+        ];
+
+        const shareholders = await Shareholder.aggregate(pipeline);
 
         const total = await Shareholder.countDocuments(queryConditions);
         res.status(200).send({
