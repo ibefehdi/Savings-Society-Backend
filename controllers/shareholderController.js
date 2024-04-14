@@ -4,11 +4,12 @@ const Share = require('../models/shareSchema');
 const Amanat = require('../models/amanatSchema');
 const Saving = require('../models/savingsSchema');
 const WithdrawalLog = require('../models/withdrawalLogSchema')
+const DepositHistory = require('../models/depositHistory');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const XLSX = require('xlsx');
 const xss = require('xss');
-
+const mongoose = require('mongoose');
 
 function sanitizeInput(input) {
     return xss(input);
@@ -192,9 +193,9 @@ exports.createShareholder = async (req, res) => {
         const address = await Address.create(sanitizedAddress);
         const shareAmount = sanitizeInput(req.body.shareAmount);
         const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
-        if (!shareAmount || !shareInitialPrice || shareAmount == 0 || shareInitialPrice == 0) {
-            return res.status(400).send({ code: 2, message: "Cannot create shareholder without buying share" });
-        }
+        // if (!shareAmount || !shareInitialPrice || shareAmount == 0 || shareInitialPrice == 0) {
+        //     return res.status(400).send({ code: 2, message: "Cannot create shareholder without buying share" });
+        // }
         const sanitizedShare = {
             amount: shareAmount,
             initialAmount: shareInitialPrice,
@@ -335,57 +336,64 @@ exports.editShareholder = async (req, res) => {
 
 exports.addSavingsToShareholder = async (req, res) => {
     try {
-        const id = req.params.id; // Shareholder ID
-        const newAmount = Number(req.body.newAmount); // The amount being added
-        const adminId = req.body.adminId; // Admin ID(s) making the change
+        const id = req.params.id;
+        const newAmount = Number(req.body.newAmount);
+        const adminId = req.body.adminId;
 
-        // Retrieve the current savings for the specified shareholder
-        const currentSavings = await Shareholder.findById(id).populate('savings');
+        const currentSavings = await Shareholder.findById(id)
+            .populate('savings');
 
         if (!currentSavings || !currentSavings.savings) {
             return res.status(404).send({ message: "Savings not found." });
         }
 
-        // Prepare adminId with timestamp and previous amount for audit purposes
-        const adminIdWithTimestamp = adminId.map(admin => ({
-            ...admin,
-            amountBeforeChange: currentSavings.savings.currentAmount,
-            timestamp: new Date()
-        }));
+        const oldAmount = currentSavings.savings.currentAmount;
+        const adminIdWithTimestamp = adminId.map(admin => ({ ...admin, amountBeforeChange: oldAmount, timestamp: new Date() }));
 
-        // Update the Savings document with the new amount and record the addition
         const updatedSavings = await Saving.findOneAndUpdate(
             { _id: currentSavings.savings._id },
             {
-                $set: { currentAmount: currentSavings.savings.currentAmount + newAmount },
+                $inc: { currentAmount: newAmount },
                 $push: {
-                    additions: { amount: newAmount, date: new Date() }, // Record this addition
-                    adminId: { $each: adminIdWithTimestamp } // Assuming this is for audit/logging
+                    additions: { amount: newAmount, date: new Date() },
+                    adminId: { $each: adminIdWithTimestamp }
                 }
             },
-            { new: true } // Return the updated document
+            { new: true }
         );
 
-        if (!updatedSavings) {
-            return res.status(404).send({ message: "Savings update failed." });
-        }
+        const depositSavings = {
+            shareholder: id,
+            savings: updatedSavings._id,
+            previousAmount: oldAmount,
+            newAmount: updatedSavings.currentAmount,
+            admin: adminId,
+            type: "Savings",
+            depositDate: Date.now()
+        };
 
+        const updatedDepositHistory = await DepositHistory.create([depositSavings]);
+        console.log(updatedDepositHistory);
         res.status(200).send({ message: "Savings updated successfully.", savings: updatedSavings });
     } catch (err) {
         res.status(400).send({ message: err.message });
     }
 };
 
+
 exports.addSharesToShareholder = async (req, res) => {
     try {
         const id = req.params.id;
         const newShareAmount = Number(req.body.newAmount);
         const adminId = req.body.adminId;
+
         const currentShares = await Shareholder.findById(id).populate('share');
         if (!currentShares || !currentShares.share) {
-            return res.status(404).send({ message: "Shareholder or their shares not found." });
+            return res.status(404).send({ status: 404, message: "Shareholder or their shares not found." });
         }
+        //const shareInitialPrice = currentShares.share.currentAmount;
         const currentAmount = Number(currentShares.share.currentAmount);
+        const totalAmount = Number(currentShares.share.amount) + currentAmount;
 
         const adminIdWithTimestamp = adminId.map(admin => ({
             ...admin,
@@ -393,25 +401,36 @@ exports.addSharesToShareholder = async (req, res) => {
             timestamp: new Date()
         }));
 
-        // Update the Share document associated with the Shareholder
         const updatedShare = await Share.findByIdAndUpdate(
             currentShares.share._id,
             {
-                $set: { currentAmount: currentAmount + newShareAmount },
+                $set: { currentAmount: currentAmount + newShareAmount, amount: totalAmount },
                 $push: { adminId: { $each: adminIdWithTimestamp } }
             },
             { new: true }
         );
 
         if (!updatedShare) {
-            return res.status(404).send({ status: 2, message: "Share not found." });
+            return res.status(404).send({ status: 404, message: "Share not found." });
         }
 
-        res.status(200).send({ status: 0, message: "Shares updated successfully.", share: updatedShare });
+        const depositShare = {
+            shareholder: id,
+            shares: updatedShare._id,
+            previousAmount: currentAmount,
+            newAmount: updatedShare.currentAmount,
+            admin: adminId,
+            type: "Shares",
+            depositDate: new Date()
+        };
+
+        const updatedDepositHistory = await DepositHistory.create(depositShare);
+        res.status(200).send({ status: 200, message: "Shares updated successfully.", share: updatedShare });
     } catch (err) {
-        res.status(400).send({ status: 1, message: err.message });
+        res.status(400).send({ status: 400, message: err.message });
     }
 };
+
 
 exports.withdrawWealth = async (req, res) => {
     try {
