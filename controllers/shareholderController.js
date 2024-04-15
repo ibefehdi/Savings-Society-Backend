@@ -260,6 +260,90 @@ exports.createShareholder = async (req, res) => {
         res.status(400).send({ status: 1, message: err.message })
     }
 }
+exports.createShareholderBackup = async (req, res) => {
+    try {
+        const sanitizedAddress = {
+            block: sanitizeInput(req.body.block),
+            street: sanitizeInput(req.body.street),
+            house: sanitizeInput(req.body.house),
+            avenue: sanitizeInput(req.body.avenue),
+            city: sanitizeInput(req.body.city),
+        }
+        const address = await Address.create(sanitizedAddress);
+        const shareAmount = sanitizeInput(req.body.shareAmount);
+        const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
+        // if (!shareAmount || !shareInitialPrice || shareAmount == 0 || shareInitialPrice == 0) {
+        //     return res.status(400).send({ code: 2, message: "Cannot create shareholder without buying share" });
+        // }
+        const approvalDate = req.body.approvalDate;
+        const year = req.body.year;
+        const withdrawn = req.body.withdrawn;
+        console.log(withdrawn);
+        console.log(year);
+        const sanitizedShare = {
+            amount: shareAmount,
+            initialAmount: shareInitialPrice,
+            currentAmount: shareInitialPrice,
+            withdrawn: withdrawn,
+            date: new Date(approvalDate),
+            year: year,
+        }
+
+        const share = await Share.create(sanitizedShare)
+        const adminId = (req.body.adminId);
+
+        const adminIdWithTimestamp = adminId.map(admin => ({
+            ...admin,
+            timestamp: new Date()
+        }));
+        const adminIdWithOutTimestamp = adminId[0]?.admin
+        console.log("This is the adminId", adminIdWithOutTimestamp);
+        const sanitizedSavings = {
+            initialAmount: sanitizeInput(req.body.savingsInitialPrice),
+            currentAmount: sanitizeInput(req.body.savingsInitialPrice),
+            withdrawn: withdrawn,
+            adminId: adminIdWithTimestamp,
+            date: new Date(approvalDate),
+        }
+        const savings = await Saving.create(sanitizedSavings)
+
+        const sanitizedShareholder = {
+            fName: sanitizeInput(req.body.fName),
+            arabFName: sanitizeInput(req.body.arabFName),
+            lName: sanitizeInput(req.body.lName),
+            arabLName: sanitizeInput(req.body.arabLName),
+            fullName: sanitizeInput(req.body.fullName),
+            membersCode: req.body.membersCode,
+            DOB: sanitizeInput(req.body.dob),
+            civilId: sanitizeInput(req.body.civilId),
+            ibanNumber: sanitizeInput(req.body.ibanNumber),
+            mobileNumber: sanitizeInput(req.body.mobileNumber),
+            gender: sanitizeInput(req.body.gender),
+            status: withdrawn == "1" ? 0 : 1,
+            membershipStatus: withdrawn == "1" ? 0 : 1,
+            dateOfDeath: null,
+            resignationDate: null,
+            createdByAdmin: adminIdWithOutTimestamp,
+            workplace: sanitizeInput(req.body.workplace),
+            email: sanitizeInput(req.body.email),
+            poBox: sanitizeInput(req.body.poBox),
+            zipCode: sanitizeInput(req.body.zipCode),
+            Area: sanitizeInput(req.body.area),
+            Country: sanitizeInput(req.body.country),
+            joinDate: sanitizeInput(req.body.joinDate),
+            quitDate: sanitizeInput(req.body.quitDate),
+            address: address?._id,
+            share: share?._id,
+            savings: savings?._id
+        }
+        console.log(sanitizedShareholder);
+
+        const shareholder = await Shareholder.create(sanitizedShareholder);
+        res.status(201).send({ status: 0, message: "Shareholder Saved Successfully.", shareholder })
+    } catch (err) {
+        res.status(400).send({ status: 1, message: err.message })
+    }
+}
 exports.editShareholder = async (req, res) => {
     try {
         const shareholderId = req.params.id;
