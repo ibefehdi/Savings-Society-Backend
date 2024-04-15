@@ -13,6 +13,10 @@ const withdrawalHistory = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Share',
     },
+    amanat: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Amanat',
+    },
     previousAmount: { type: String },
     newAmount: { type: String },
     withdrawalDate: { type: Date },
