@@ -21,7 +21,7 @@ const shareholderSchema = new mongoose.Schema({
     joinDate: { type: Date },
     quitDate: { type: Date },
     DOB: { type: Date },
-    civilId: { type: String, unique: true },
+    civilId: { type: String, },
     status: { type: Number, enum: [0, 1, 2] }, //0 is active, 1 is inactive/amount withdrawn, 2 is Expired/Death
     membershipStatus: { type: Number, enum: [0, 1] },
     office: { type: String },

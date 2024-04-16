@@ -278,7 +278,7 @@ exports.createShareholderBackup = async (req, res) => {
         const approvalDate = req.body.approvalDate;
         const year = req.body.year;
         const withdrawn = req.body.withdrawn;
-        console.log(withdrawn);
+        console.log("This is the withdrawn : ", withdrawn);
         console.log(year);
         const sanitizedShare = {
             amount: shareAmount,
