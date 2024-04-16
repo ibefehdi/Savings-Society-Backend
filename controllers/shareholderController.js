@@ -278,7 +278,7 @@ exports.createShareholderBackup = async (req, res) => {
         const approvalDate = req.body.approvalDate;
         const year = req.body.year;
         const withdrawn = req.body.withdrawn;
-        console.log("This is the withdrawn : ", withdrawn);
+        console.log("This is the withdrawn:", withdrawn);
         console.log(year);
         const sanitizedShare = {
             amount: shareAmount,
@@ -319,8 +319,8 @@ exports.createShareholderBackup = async (req, res) => {
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
-            status: withdrawn === "false" ? 0 : 1,
-            membershipStatus: withdrawn === "false" ? 0 : 1,
+            status: withdrawn === "false" ? 1 : 0,
+            membershipStatus: withdrawn === "false" ? 1 : 0,
             dateOfDeath: null,
             resignationDate: null,
             createdByAdmin: adminIdWithOutTimestamp,

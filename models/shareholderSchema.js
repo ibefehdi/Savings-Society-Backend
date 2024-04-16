@@ -17,7 +17,7 @@ const shareholderSchema = new mongoose.Schema({
     lName: { type: String },
     arabLName: { type: String },
     fullName: { type: String },
-    membersCode: { type: String },
+    membersCode: { type: String, unique: true },
     joinDate: { type: Date },
     quitDate: { type: Date },
     DOB: { type: Date },
