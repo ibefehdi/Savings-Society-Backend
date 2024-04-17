@@ -16,6 +16,7 @@ const savingsSchema = new mongoose.Schema({
     withdrawn: { type: Boolean },
     maxReached: { type: Boolean },
     amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
+    year: { type: String },
     adminId: [adminIdSchema],
 }, { timestamps: true });
 

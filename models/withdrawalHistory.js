@@ -21,6 +21,7 @@ const withdrawalHistory = new mongoose.Schema({
     newAmount: { type: String },
     withdrawalDate: { type: Date },
     type: { type: String },
-    admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    year: { type: String }
 })
 module.exports = mongoose.model('WithdrawalHistory', withdrawalHistory)

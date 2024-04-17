@@ -57,7 +57,7 @@ exports.getAllShareholderReport = async (req, res) => {
             { $unwind: { path: '$shareDetails', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
-                    serial: 1,
+                    membersCode: 1,
                     civilId: 1,
                     fullName: { $concat: ['$fName', ' ', '$lName'] },
                     'shareDetails.currentAmount': 1,
