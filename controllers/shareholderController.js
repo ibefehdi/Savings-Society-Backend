@@ -27,7 +27,7 @@ exports.getAllShareholders = async (req, res) => {
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
         const gender = req.query.gender || '';
-        const serial = req.query.serial || '';
+        const membersCode = req.query.membersCode || '';
         const currentYear = new Date().getFullYear();
 
         let queryConditions = {};
@@ -46,8 +46,8 @@ exports.getAllShareholders = async (req, res) => {
         if (lName) {
             queryConditions.lName = { $regex: lName, $options: 'i' };
         }
-        if (serial) {
-            queryConditions.serial = parseInt(serial, 10);
+        if (membersCode) {
+            queryConditions.membersCode = parseInt(membersCode, 10);
         }
         if (gender) {
             queryConditions.gender = gender;
@@ -93,7 +93,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
         const gender = req.query.gender || '';
-        const serial = req.query.serial || '';
+        const membersCode = req.query.membersCode || '';
         let queryConditions = {};
         if (status) {
             queryConditions.status = status;
@@ -110,8 +110,8 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         if (lName) {
             queryConditions.lName = { $regex: lName, $options: 'i' };
         }
-        if (serial) {
-            queryConditions.serial = parseInt(serial, 10);
+        if (membersCode) {
+            queryConditions.membersCode = parseInt(membersCode, 10);
         }
         if (gender) {
             queryConditions.gender = gender;
