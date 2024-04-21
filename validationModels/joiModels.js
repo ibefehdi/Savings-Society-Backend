@@ -53,6 +53,7 @@ const joiShareholderSchema = Joi.object({
     status: Joi.number().required(),
     adminId: Joi.array().required(),
     ibanNumber: Joi.string(),
+    bankName: Joi.string(),
     block: Joi.string(),
     mobileNumber: Joi.string(),
     street: Joi.string(),

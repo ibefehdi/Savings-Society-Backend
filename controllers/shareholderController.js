@@ -21,19 +21,19 @@ exports.getAllShareholders = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const status = req.query.status || 0;
         const fName = req.query.fName || '';
         const lName = req.query.lName || '';
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
+
         const currentYear = new Date().getFullYear();
 
-        let queryConditions = {};
-        if (status) {
-            queryConditions.status = status;
-        }
+        let queryConditions = {
+            status: 0 // Ensuring status is always 0, regardless of query input
+        };
+
         if (fName) {
             queryConditions.fName = { $regex: fName, $options: 'i' };
         }
@@ -82,6 +82,7 @@ exports.getAllShareholders = async (req, res) => {
     }
 };
 
+
 exports.getAllShareholdersFormatted = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -94,56 +95,36 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         const membershipStatus = req.query.membershipStatus || '';
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
+
         let queryConditions = {};
-        if (status) {
-            queryConditions.status = status;
-        }
-        if (fName) {
-            queryConditions.fName = { $regex: fName, $options: 'i' };
-        }
-        if (civilId) {
-            queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
-        }
-        if (membershipStatus) {
-            queryConditions.membershipStatus = membershipStatus;
-        }
-        if (lName) {
-            queryConditions.lName = { $regex: lName, $options: 'i' };
-        }
-        if (membersCode) {
-            queryConditions.membersCode = parseInt(membersCode, 10);
-        }
-        if (gender) {
-            queryConditions.gender = gender;
-        }
+        if (status) queryConditions.status = status;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (membershipStatus) queryConditions.membershipStatus = membershipStatus;
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (membersCode) queryConditions.membersCode = parseInt(membersCode, 10);
+        if (gender) queryConditions.gender = gender;
 
         const shareholders = await Shareholder.find(queryConditions)
-            .populate({
-                path: 'savings',
-                populate: {
-                    path: 'amanat',
-                    model: 'Amanat'
-                }
-            })
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
             .populate('share')
-            .populate('address')
-
-
+            .populate('address');
 
         const csvStringifier = stringify({ header: true });
-        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
+        // Include a BOM (Byte Order Mark) to ensure the CSV file is correctly interpreted by Excel
+        res.write('\uFEFF');  // UTF-8 BOM
         csvStringifier.pipe(res);
 
         shareholders.forEach(shareholder => {
             const shareholderObject = shareholder.toObject();
 
-            // Directly format the ISO 8601 date string using moment
+            // Format the ISO 8601 date string using moment
             if (shareholderObject.DOB) {
                 shareholderObject.DOB = moment(shareholderObject.DOB).format('DD-MM-YYYY');
             } else {
-                // Handle missing DOB.
-                shareholderObject.DOB = 'Missing date';
+                shareholderObject.DOB = 'Missing date'; // Handle missing DOB
             }
 
             csvStringifier.write(shareholderObject);
@@ -246,6 +227,7 @@ exports.createShareholder = async (req, res) => {
             membersCode: req.body.membersCode,
             DOB: new Date(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
+            bankName: sanitizeInput(req.body.bankName),
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
@@ -257,7 +239,7 @@ exports.createShareholder = async (req, res) => {
             poBox: sanitizeInput(req.body.poBox),
             zipCode: sanitizeInput(req.body.zipCode),
             Area: sanitizeInput(req.body.area),
-            Country: sanitizeInput(req.body.country),
+            Country: "كويت",
             joinDate: new Date(req.body.joinDate),
             quitDate: req.body.quitDate ? new Date(req.body.quitDate) : null,
             address: address._id,
@@ -526,7 +508,7 @@ exports.addSharesToShareholder = async (req, res) => {
             // No existing shares record for the year, create a new one
             sharesRecord = await Share.create({
                 amount: newShareAmount,
-                initialAmount: newShareAmount, 
+                initialAmount: newShareAmount,
                 currentAmount: newShareAmount,
                 adminId: [],
                 date: new Date(),
@@ -539,7 +521,7 @@ exports.addSharesToShareholder = async (req, res) => {
         // Update shares record with new amount and admin details
         const oldAmount = sharesRecord.currentAmount;
         sharesRecord.currentAmount += newShareAmount;
-        sharesRecord.amount += newShareAmount; 
+        sharesRecord.amount += newShareAmount;
         sharesRecord.adminId.push({
             adminId: adminId,
             amountBeforeChange: oldAmount,
