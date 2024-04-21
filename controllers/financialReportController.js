@@ -15,12 +15,12 @@ exports.getAllShareholderReport = async (req, res) => {
 
         // Build query conditions dynamically
         if (req.query.status) queryConditions['status'] = req.query.status;
-        if (req.query.fName) queryConditions['fName'] = { $regex: req.query.fName, $options: 'i' };
-        if (req.query.civilId) queryConditions['civilId'] = { $regex: `^${req.query.civilId}`, $options: 'i' };
+        if (req.query.fName) queryConditions['fName'] = { $regex: new RegExp(req.query.fName, 'i') };
+        if (req.query.civilId) queryConditions['civilId'] = { $regex: `^${req.query.civilId.toString()}` };
         if (req.query.membershipStatus) queryConditions['membershipStatus'] = req.query.membershipStatus;
-        if (req.query.lName) queryConditions['lName'] = { $regex: req.query.lName, $options: 'i' };
-        if (req.query.serial) queryConditions['serial'] = parseInt(req.query.serial, 10);
-        if (req.query.gender) queryConditions['gender'] = { $regex: req.query.gender, $options: 'i' };
+        if (req.query.lName) queryConditions['lName'] = { $regex: new RegExp(req.query.lName, 'i') };
+        if (req.query.membersCode) queryConditions['membersCode'] = req.query.membersCode.toString(); // Converting to string if necessary
+        if (req.query.gender) queryConditions['gender'] = req.query.gender;
 
         console.log('queryConditions:', queryConditions);
 
@@ -65,24 +65,35 @@ exports.getAllShareholderReport = async (req, res) => {
                     'savingsDetails.currentAmount': 1,
                     'savingsDetails.initialAmount': 1,
                     'savingsDetails.amanatDetails.amount': 1,
+                    'savingsDetails.year': 1,
+                    'shareDetails.year': 1,
                     shareIncrease: { $subtract: ['$shareDetails.currentAmount', '$shareDetails.initialAmount'] },
                     savingsIncrease: { $subtract: ['$savingsDetails.currentAmount', '$savingsDetails.initialAmount'] },
-                    total: { $sum: ['$savingsDetails.currentAmount', '$shareDetails.currentAmount', '$savingsDetails.amanatDetails.amount'] }
+                    total: {
+                        $sum: [
+                            '$savingsDetails.currentAmount',
+                            '$shareDetails.currentAmount',
+                            '$savingsDetails.amanatDetails.amount'
+                        ]
+                    }
                 }
             },
+            { $sort: { 'savingsDetails.year': -1, 'shareDetails.year': -1 } },
             { $skip: skip },
-            
+            { $limit: resultsPerPage }
         ];
 
         const shareholders = await Shareholder.aggregate(pipeline);
-
         const total = await Shareholder.countDocuments(queryConditions);
+        console.log('Aggregation result:', shareholders);
         res.status(200).send({
             data: shareholders,
             count: total,
             metadata: { total: total }
         });
     } catch (err) {
+        console.error('Aggregation error:', err);
         res.status(500).send({ message: err.message });
     }
 };
+
