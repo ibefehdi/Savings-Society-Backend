@@ -56,7 +56,7 @@ exports.getAllShareholders = async (req, res) => {
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
                 path: 'savings',
-                match: { year: currentYear }, // Match only the current year's savings
+
                 populate: {
                     path: 'amanat',
                     model: 'Amanat'
@@ -329,7 +329,7 @@ exports.createShareholderBackup = async (req, res) => {
             // quitDate: sanitizeInput(req.body.quitDate),
             address: address?._id,
             share: [share?._id],
-            savings: [savings?._id]
+            savings: savings?._id
         }
         console.log(sanitizedShareholder);
 
@@ -417,69 +417,68 @@ exports.addSavingsToShareholder = async (req, res) => {
     try {
         const id = req.params.id;
         const newAmount = Number(req.body.newAmount);
-        const adminId = req.body.adminId;
-        const year = req.body.year || new Date().getFullYear(); // Use provided year or current year
+        const adminId = req.body.adminId; // Assume this is correctly a string
+        const year = new Date().getFullYear();
 
-        // Find the shareholder with populated savings for the current year
-        const shareholder = await Shareholder.findById(id).populate({
-            path: 'savings',
-            match: { year: year } // Filter to populate only the current year's savings
-        });
-
+        const shareholder = await Shareholder.findById(id);
         if (!shareholder) {
             return res.status(404).send({ message: "Shareholder not found." });
         }
 
-        let savingsRecord;
-        if (shareholder.savings.length > 0) {
-            // Existing savings record for the year found
-            savingsRecord = shareholder.savings[0];
+        if (!shareholder.savings) {
+            shareholder.savings = {
+                currentAmount: newAmount,
+                adminId: [{  // Properly initialized as an array
+                    adminId: adminId,
+                    amountBeforeChange: 0,
+                    timestamp: new Date()
+                }],
+                withdrawn: false,
+                date: new Date(),
+                year: year
+            };
 
-            // Update savings record with new amount and admin details
-            const oldAmount = savingsRecord.currentAmount;
-            savingsRecord.currentAmount += newAmount;  // Add new amount to existing current amount
-            savingsRecord.adminId.push({
+        } else {
+            const oldAmount = shareholder.savings.currentAmount;
+            shareholder.savings.currentAmount += newAmount;
+            console.log("Checking adminId array:", shareholder.savings.adminId);
+
+            if (!Array.isArray(shareholder.savings.adminId)) {
+                shareholder.savings.adminId = [];
+            }
+            shareholder.savings.adminId.push({
                 adminId: adminId,
                 amountBeforeChange: oldAmount,
                 timestamp: new Date()
             });
-            await savingsRecord.save();
 
-            // Record this transaction in deposit history
-            const depositSavings = {
-                shareholder: id,
-                savings: savingsRecord._id,
-                previousAmount: oldAmount,
-                newAmount: savingsRecord.currentAmount,
-                admin: adminId,
-                type: "Savings",
-                depositDate: new Date()
-            };
-            await DepositHistory.create(depositSavings);
-
-        } else {
-            // No existing savings record for the year, create new
-            savingsRecord = await Saving.create({
-                initialAmount: newAmount,
-                currentAmount: newAmount,
-                withdrawn: false,
-                adminId: [],
-                date: new Date(),
-                year: year
-            });
-            shareholder.savings.push(savingsRecord._id); // Add to shareholder's savings array
-            await shareholder.save(); // Save the updated shareholder record
         }
+
+        // Save the updated shareholder record
+        await shareholder.save();
+
+        // Record this transaction in deposit history
+        const depositSavings = {
+            shareholder: id,
+            savings: shareholder.savings,
+            previousAmount: shareholder.savings.amountBeforeChange || 0,
+            newAmount: shareholder.savings.currentAmount,
+            admin: adminId,
+            type: "Savings",
+            depositDate: new Date()
+        };
+        await DepositHistory.create(depositSavings);
 
         res.status(200).send({
             message: "Savings updated successfully.",
-            savings: savingsRecord,
+            savings: shareholder.savings,
             shareholder: shareholder
         });
     } catch (err) {
         res.status(400).send({ message: err.message });
     }
 };
+
 
 
 
@@ -613,7 +612,7 @@ exports.withdrawAmanat = async (req, res) => {
         }
         console.log("This is amanat", shareholder.savings.amanat);
         // Check if savings have already been withdrawn
-        if (shareholder.savings[0].amanat && shareholder.savings[0].amanat.withdrawn) {
+        if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
             const response = {
                 shareholder: shareholder,
                 savings: shareholder.savings.amanat,
@@ -626,7 +625,7 @@ exports.withdrawAmanat = async (req, res) => {
 
 
         // Retrieve the current amount from the savings
-        const currentAmount = shareholder.savings[0].amanat.amount;
+        const currentAmount = shareholder.savings.amanat.amount;
         console.log("This is the current amount", currentAmount);
         // Check if there's enough balance to withdraw
         if (amountToWithdraw > currentAmount) {
@@ -637,7 +636,7 @@ exports.withdrawAmanat = async (req, res) => {
         const isFullyWithdrawn = amountToWithdraw === currentAmount;
         console.log("this is the fully withdrwan", isFullyWithdrawn);
         // Update the savings document with the new current amount and set withdrawn accordingly
-        await Amanat.findByIdAndUpdate(shareholder.savings[0].amanat._id, {
+        await Amanat.findByIdAndUpdate(shareholder.savings.amanat._id, {
             $set: {
                 amount: currentAmount - amountToWithdraw,
                 withdrawn: isFullyWithdrawn
@@ -645,7 +644,7 @@ exports.withdrawAmanat = async (req, res) => {
         });
 
 
-        const updatedSavings = await Amanat.findById(shareholder.savings[0].amanat._id);
+        const updatedSavings = await Amanat.findById(shareholder.savings.amanat._id);
         const withdrawalLog = new WithdrawalLog({
             shareholder: shareholder._id,
             saving: updatedSavings._id,
@@ -723,16 +722,16 @@ exports.withdrawSavings = async (req, res) => {
         const amountToWithdraw = req.body.amountToWithdraw;
         const shareholder = await Shareholder.findById(id).populate({
             path: 'savings',
-            match: { year: year }
+
         });
-        console.log(shareholder.savings[0]);
+        console.log(shareholder.savings);
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
-        const oldAmount = shareholder.savings[0].currentAmount;
+        const oldAmount = shareholder.savings.currentAmount;
 
         // Check if savings have already been withdrawn
-        if (shareholder.savings && shareholder.savings[0].withdrawn) {
+        if (shareholder.savings && shareholder.savings.withdrawn) {
             const response = {
                 shareholder: shareholder,
                 savings: shareholder.savings,
@@ -744,7 +743,7 @@ exports.withdrawSavings = async (req, res) => {
         await shareholder.save();
         if (shareholder.savings) {
             // Retrieve the current amount from the savings
-            const currentAmount = shareholder.savings[0].currentAmount;
+            const currentAmount = shareholder.savings.currentAmount;
 
             // Check if there's enough balance to withdraw
             if (amountToWithdraw > currentAmount) {
@@ -755,15 +754,16 @@ exports.withdrawSavings = async (req, res) => {
             const isFullyWithdrawn = amountToWithdraw === currentAmount;
 
             // Update the savings document with the new current amount and set withdrawn accordingly
-            await Saving.findByIdAndUpdate(shareholder.savings[0]._id, {
+            await Saving.findByIdAndUpdate(shareholder.savings._id, {
                 $set: {
                     currentAmount: currentAmount - amountToWithdraw,
-                    withdrawn: isFullyWithdrawn
+                    withdrawn: isFullyWithdrawn,
+                    year: year,
                 }
             });
         }
 
-        const updatedSavings = await Saving.findById(shareholder.savings[0]._id);
+        const updatedSavings = await Saving.findById(shareholder.savings._id);
         const withdrawalLog = new WithdrawalLog({
             shareholder: shareholder._id,
             saving: updatedSavings._id,
@@ -797,16 +797,15 @@ exports.withdrawSavings = async (req, res) => {
 exports.getShareholderFinancials = async (req, res) => {
     try {
         const id = req.params.id;
-        const year = new Date().getFullYear();
+        // const year = new Date().getFullYear();
 
         const shareholder = await Shareholder.findOne({ _id: id })
             .populate({
                 path: 'share',
-                match: { year: year }
+                match: { year: 2000 }
             })
             .populate({
                 path: 'savings',
-                match: { year: year },
                 populate: {
                     path: 'amanat',
                     model: 'Amanat'
@@ -824,9 +823,9 @@ exports.getShareholderFinancials = async (req, res) => {
         }
 
         const response = {
-            savings: shareholder.savings.length ? shareholder.savings[0] : null,
+            savings: shareholder.savings ? shareholder.savings : null,
             shares: shareholder.share.length ? shareholder.share[0] : null,
-            amanat: shareholder.savings.length && shareholder.savings[0].amanat ? shareholder.savings[0].amanat : null
+            amanat: shareholder.savings.amanat ? shareholder.savings.amanat : null
         };
 
         res.status(200).send({

@@ -110,9 +110,10 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     if (this.withdrawn) {
         return this.currentAmount;
     }
-
+    console.log(now.getFullYear())
     if (yearFractionSinceLastUpdate > 0) {
-        const shareConfig = await savingsConfigSchema.findOne({ year: now.getFullYear() });
+        const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+        console.log(shareConfig);
         if (!shareConfig) {
             console.log(`No savings configuration found for this year.`);
             this.lastUpdateDate = now;

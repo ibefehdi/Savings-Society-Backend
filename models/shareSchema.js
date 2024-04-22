@@ -30,15 +30,16 @@ const shareSchema = new mongoose.Schema({
 shareSchema.methods.calculateCurrentPrice = async function () {
     const now = new Date();
     const purchaseDate = this.date;
+
     const currentYear = now.getFullYear();
     const withdrawn = this.withdrawn;
     let currentAmount = this.currentAmount;
 
     if (withdrawn) {
-        return currentAmount; 
+        return currentAmount;
     }
 
-    let lastUpdateDate = this.lastUpdateDate ? new Date(this.lastUpdateDate) : purchaseDate;
+    let lastUpdateDate = this.timeSinceLastUpdate ? new Date(this.timeSinceLastUpdate) : purchaseDate;
     // Calculate time since last update in fraction of a year
     const timeSinceLastUpdate = now - lastUpdateDate;
     const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
@@ -46,7 +47,7 @@ shareSchema.methods.calculateCurrentPrice = async function () {
 
     // Only proceed if there is a fraction of the year to calculate
     if (yearFractionSinceLastUpdate > 0) {
-        const shareConfig = await shareConfigSchema.findOne({ year: currentYear });
+        const shareConfig = await shareConfigSchema.findOne({ year: this.year });
         if (!shareConfig) {
             console.log(`No share configuration found for year ${currentYear}`);
             // Even if there's no config for the current year, update lastUpdateDate to prevent repeated application
