@@ -27,11 +27,10 @@ exports.getAllShareholders = async (req, res) => {
         const membershipStatus = req.query.membershipStatus || '';
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
-
+        const status = req.query.status || 0;
         const currentYear = new Date().getFullYear();
 
         let queryConditions = {
-            status: 0 // Ensuring status is always 0, regardless of query input
         };
 
         if (fName) {
@@ -52,7 +51,9 @@ exports.getAllShareholders = async (req, res) => {
         if (gender) {
             queryConditions.gender = gender;
         }
-
+        if (status) {
+            queryConditions.status = status || 0;
+        }
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
                 path: 'savings',
@@ -64,7 +65,7 @@ exports.getAllShareholders = async (req, res) => {
             })
             .populate({
                 path: 'share',
-                match: { year: currentYear } // Match only the current year's shares
+                match: { year: currentYear }
             })
             .populate('address')
             .skip(skip)
@@ -113,7 +114,6 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         const csvStringifier = stringify({ header: true });
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
-        // Include a BOM (Byte Order Mark) to ensure the CSV file is correctly interpreted by Excel
         res.write('\uFEFF');  // UTF-8 BOM
         csvStringifier.pipe(res);
 
@@ -254,7 +254,28 @@ exports.createShareholder = async (req, res) => {
         res.status(400).send({ status: 1, message: err.message });
     }
 };
+exports.makeUserInactive = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const quitDate = new Date(req.body.quitDate);
 
+        const shareholder = await Shareholder.findById(id);
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 0, message: 'Shareholder not found' });
+        }
+
+        shareholder.status = 1;
+        shareholder.membershipStatus = 1;
+        shareholder.quitDate = quitDate;
+
+        await shareholder.save();
+
+        res.status(200).send({ status: 1, message: 'Shareholder updated successfully' });
+    } catch (err) {
+        res.status(400).send({ status: 0, message: err.message });
+    }
+};
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
@@ -485,14 +506,13 @@ exports.addSavingsToShareholder = async (req, res) => {
 exports.addSharesToShareholder = async (req, res) => {
     try {
         const id = req.params.id;
-        const newShareAmount = Number(req.body.newAmount);
+        const newShareAmount = Number(req.body.newShareAmount);
         const adminId = req.body.adminId;
-        const year = req.body.year || new Date().getFullYear();  // Use provided year or current year
+        const year = req.body.year || new Date().getFullYear();
 
-        // Retrieve the shareholder with shares populated for the current year
         const shareholder = await Shareholder.findById(id).populate({
             path: 'share',
-            match: { year: year } // Filter to populate only this year's shares
+            match: { year: year }
         });
 
         if (!shareholder) {
@@ -501,10 +521,8 @@ exports.addSharesToShareholder = async (req, res) => {
 
         let sharesRecord;
         if (shareholder.share.length > 0) {
-            // Existing share record for the year found
             sharesRecord = shareholder.share[0];
         } else {
-            // No existing shares record for the year, create a new one
             sharesRecord = await Share.create({
                 amount: newShareAmount,
                 initialAmount: newShareAmount,
@@ -513,11 +531,10 @@ exports.addSharesToShareholder = async (req, res) => {
                 date: new Date(),
                 year: year
             });
-            shareholder.share.push(sharesRecord._id); // Add to shareholder's share array
-            await shareholder.save(); // Save the updated shareholder record
+            shareholder.share.push(sharesRecord._id);
+            await shareholder.save();
         }
 
-        // Update shares record with new amount and admin details
         const oldAmount = sharesRecord.currentAmount;
         sharesRecord.currentAmount += newShareAmount;
         sharesRecord.amount += newShareAmount;

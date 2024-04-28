@@ -1,7 +1,7 @@
 // depositHistoryController.js
 
 const mongoose = require('mongoose');
-const DepositHistory = require('../models/depositHistory');  // Update path to where your model is stored
+const DepositHistory = require('../models/depositHistory');  
 
 // Function to get all deposit history records
 const getAllDepositHistory = async (req, res) => {
