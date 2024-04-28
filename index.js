@@ -15,6 +15,7 @@ const receiptVoucherSerialRoutes = require("./routes/receiptVoucherSerialRoutes"
 const financialReportRoutes = require("./routes/financialReportRoutes");
 const depositHistoryRoutes = require("./routes/depositHistoryRoutes");
 const withdrawalHistoryRoutes = require("./routes/withdrawalHistoryRoutes")
+const workplaceRoutes = require("./routes/workplaceRoutes")
 const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
@@ -154,5 +155,6 @@ app.use('/api/v1/', financialReportRoutes);
 app.use('/api/v1/', receiptVoucherSerialRoutes)
 app.use('/api/v1/', depositHistoryRoutes)
 app.use('/api/v1/', withdrawalHistoryRoutes)
+app.use('/api/v1/', workplaceRoutes)
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
