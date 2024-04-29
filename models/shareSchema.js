@@ -27,59 +27,127 @@ const shareSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Calculate the current amount based on the initial amount and the time elapsed
+// shareSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
+//     const purchaseDate = this.date;
+
+//     const currentYear = now.getFullYear();
+//     const withdrawn = this.withdrawn;
+//     let currentAmount = this.currentAmount;
+
+//     if (withdrawn) {
+//         return currentAmount;
+//     }
+
+//     let lastUpdateDate = this.timeSinceLastUpdate ? new Date(this.timeSinceLastUpdate) : purchaseDate;
+//     // Calculate time since last update in fraction of a year
+//     const timeSinceLastUpdate = now - lastUpdateDate;
+//     const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+//     // const yearFractionSinceLastUpdate = 1
+
+//     // Only proceed if there is a fraction of the year to calculate
+//     if (yearFractionSinceLastUpdate > 0) {
+//         const shareConfig = await shareConfigSchema.findOne({ year: this.year });
+//         if (!shareConfig) {
+//             console.log(`No share configuration found for year ${currentYear}`);
+//             // Even if there's no config for the current year, update lastUpdateDate to prevent repeated application
+//             this.lastUpdateDate = now;
+//             await this.save();
+//             return currentAmount; // Return the unchanged amount
+//         }
+
+//         //const annualIncreaseRate = shareConfig.individualSharePercentage; 
+//         const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+//         console.log("Annual INterest rate", annualIncreaseRate)
+//         // Apply the calculated rate based on the time since the last update
+//         let calculatedAmount = currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+//         console.log("This is the calculated Amount", calculatedAmount)
+//         // Determine the difference and update if necessary
+//         let difference = calculatedAmount - currentAmount;
+//         console.log("This is the difference", difference);
+
+//         currentAmount = calculatedAmount;
+
+//         // Update lastUpdateDate to now
+//         this.lastUpdateDate = now;
+
+//         console.log(`Updated current amount for Shares with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
+//     } else {
+//         console.log(`No time has passed since the last update, current amount remains ${currentAmount.toFixed(2)}`);
+//     }
+
+//     // Save any changes to the database
+//     await this.save();
+
+//     // Return the updated (or unchanged) current amount, rounded and converted to a number
+//     return Number(currentAmount);
+// };
 shareSchema.methods.calculateCurrentPrice = async function () {
+    console.log("Calculating current price for share");
+
     const now = new Date();
     const purchaseDate = this.date;
-
     const currentYear = now.getFullYear();
     const withdrawn = this.withdrawn;
     let currentAmount = this.currentAmount;
 
+    console.log("Current year:", currentYear);
+    console.log("Purchase date:", purchaseDate);
+    console.log("Withdrawn status:", withdrawn);
+    console.log("Current amount:", currentAmount);
+
     if (withdrawn) {
+        console.log("Share is withdrawn, returning current amount");
+        return currentAmount;
+    }
+
+    console.log("Share year:", this.year);
+
+    if (this.year !== currentYear) {
+        console.log("Share year does not match current year, returning current amount");
         return currentAmount;
     }
 
     let lastUpdateDate = this.timeSinceLastUpdate ? new Date(this.timeSinceLastUpdate) : purchaseDate;
-    // Calculate time since last update in fraction of a year
+    console.log("Last update date:", lastUpdateDate);
+
     const timeSinceLastUpdate = now - lastUpdateDate;
     const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
-    // const yearFractionSinceLastUpdate = 1
+    console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
 
-    // Only proceed if there is a fraction of the year to calculate
     if (yearFractionSinceLastUpdate > 0) {
+        console.log("Time has passed since last update, retrieving share configuration");
+
         const shareConfig = await shareConfigSchema.findOne({ year: this.year });
+
         if (!shareConfig) {
             console.log(`No share configuration found for year ${currentYear}`);
-            // Even if there's no config for the current year, update lastUpdateDate to prevent repeated application
             this.lastUpdateDate = now;
             await this.save();
-            return currentAmount; // Return the unchanged amount
+            console.log("Updated last update date and saved share");
+            return currentAmount;
         }
 
-        //const annualIncreaseRate = shareConfig.individualSharePercentage; 
         const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+        console.log("Annual interest rate:", annualIncreaseRate);
 
-        // Apply the calculated rate based on the time since the last update
         let calculatedAmount = currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+        console.log("Calculated amount:", calculatedAmount);
 
-        // Determine the difference and update if necessary
         let difference = calculatedAmount - currentAmount;
-        console.log("This is the difference", difference);
+        console.log("Difference between calculated and current amount:", difference);
 
         currentAmount = calculatedAmount;
-
-        // Update lastUpdateDate to now
         this.lastUpdateDate = now;
-
-        console.log(`Updated current amount for Shares with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
+        console.log(`Updated current amount for share with initial amount ${this.initialAmount} to ${currentAmount.toFixed(2)}`);
     } else {
         console.log(`No time has passed since the last update, current amount remains ${currentAmount.toFixed(2)}`);
     }
 
-    // Save any changes to the database
     await this.save();
+    console.log("Saved updated share");
 
-    // Return the updated (or unchanged) current amount, rounded and converted to a number
+    console.log("Returning current amount:", Number(currentAmount));
     return Number(currentAmount);
 };
 shareSchema.pre('save', async function (next) {

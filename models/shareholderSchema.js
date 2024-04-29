@@ -17,7 +17,10 @@ const shareholderSchema = new mongoose.Schema({
     lName: { type: String },
     arabLName: { type: String },
     fullName: { type: String },
-    membersCode: { type: String },
+    membersCode: {
+        type: String,
+        unique: true,
+    },
     joinDate: { type: Date },
     quitDate: { type: Date },
     DOB: { type: Date },
@@ -45,19 +48,19 @@ const shareholderSchema = new mongoose.Schema({
     amanat: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' }],
     gender: { type: String, enum: ['male', 'female'], required: true }
 })
-
 shareholderSchema.pre('save', async function (next) {
     if (this.isNew) {
         try {
-            const counter = await Counter.findByIdAndUpdate(
-                { _id: 'serial' },
-                { $inc: { seq: 1 } },
-                { new: true, upsert: true }
-            );
-            this.serial = counter.seq;
+            if (!this.membersCode) {
+                const lastShareholder = await this.constructor.findOne({}, 'membersCode', { sort: { membersCode: -1 } });
+                if (lastShareholder && lastShareholder.membersCode) {
+                    this.membersCode = Number(lastShareholder.membersCode) + 1;
+                } else {
+                    this.membersCode = 1;
+                }
+            }
             next();
         } catch (error) {
-
             next(error);
         }
     } else {
