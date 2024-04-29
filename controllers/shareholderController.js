@@ -6,7 +6,7 @@ const Saving = require('../models/savingsSchema');
 const WithdrawalLog = require('../models/withdrawalLogSchema')
 const DepositHistory = require('../models/depositHistory');
 const WithdrawalHistory = require('../models/withdrawalHistory');
-
+const Workplace = require('../models/workplaceSchema');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const XLSX = require('xlsx');
@@ -205,11 +205,10 @@ exports.createShareholder = async (req, res) => {
             timestamp: new Date()
         }));
         const adminIdWithoutTimestamp = adminId[0]?.admin;
-
-        // Sanitize and create savings
+        const savingsInitialPrice = req.body.savingsInitialPrice ? sanitizeInput(req.body.savingsInitialPrice) : 0;
         const sanitizedSavings = {
-            initialAmount: sanitizeInput(req.body.savingsInitialPrice),
-            currentAmount: sanitizeInput(req.body.savingsInitialPrice),
+            initialAmount: savingsInitialPrice,
+            currentAmount: savingsInitialPrice,
             withdrawn: false,
             adminId: adminIdWithTimestamp,
             date: new Date(req.body.joinDate),
@@ -224,7 +223,7 @@ exports.createShareholder = async (req, res) => {
             lName: sanitizeInput(req.body.lName),
             arabLName: sanitizeInput(req.body.arabLName),
             fullName: sanitizeInput(req.body.fullName),
-            membersCode: req.body.membersCode,
+            membersCode: req.body.membersCode ? req.body.membersCode : undefined,
             DOB: new Date(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             bankName: sanitizeInput(req.body.bankName),
@@ -244,9 +243,9 @@ exports.createShareholder = async (req, res) => {
             quitDate: req.body.quitDate ? new Date(req.body.quitDate) : null,
             address: address._id,
             share: [share._id],
-            savings: [savings._id]
+            savings: savings._id
         };
-
+        console.log(sanitizedShareholder);
         // Create shareholder
         const shareholder = await Shareholder.create(sanitizedShareholder);
         res.status(201).send({ status: 0, message: "Shareholder Saved Successfully.", shareholder });
@@ -288,12 +287,20 @@ exports.createShareholderBackup = async (req, res) => {
         const address = await Address.create(sanitizedAddress);
         const shareAmount = sanitizeInput(req.body.shareAmount);
         const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
+        const workplaceId = sanitizeInput(req.body.workplaceId);
+        console.log("This is the membersCode", req.body.membersCode);
+        let workplaceDescription = '';
 
+        if (workplaceId) {
+            const workplace = await Workplace.findOne({ id: workplaceId.toString() });
+            if (workplace) {
+                workplaceDescription = workplace.description;
+            }
+        }
         const approvalDate = req.body.approvalDate;
         const year = req.body.year;
         const withdrawn = req.body.withdrawn;
-        console.log("This is the withdrawn:", withdrawn);
-        console.log(year);
+        console.log("This is the withdrawn ", withdrawn)
         const sanitizedShare = {
             amount: shareAmount,
             initialAmount: shareInitialPrice,
@@ -312,16 +319,16 @@ exports.createShareholderBackup = async (req, res) => {
         }));
         const adminIdWithOutTimestamp = adminId[0]?.admin
         console.log("This is the adminId", adminIdWithOutTimestamp);
-        const sanitizedSavings = {
-            initialAmount: sanitizeInput(req.body.savingsInitialPrice),
-            currentAmount: sanitizeInput(req.body.savingsInitialPrice),
-            withdrawn: withdrawn,
-            adminId: adminIdWithTimestamp,
-            date: new Date(approvalDate),
-            year: new Date(approvalDate).getFullYear(),
+        // const sanitizedSavings = {
+        //     initialAmount: sanitizeInput(req.body.savingsInitialPrice),
+        //     currentAmount: sanitizeInput(req.body.savingsInitialPrice),
+        //     withdrawn: withdrawn,
+        //     adminId: adminIdWithTimestamp,
+        //     date: new Date(approvalDate),
+        //     year: new Date(approvalDate).getFullYear(),
 
-        }
-        const savings = await Saving.create(sanitizedSavings)
+        // }
+        // const savings = await Saving.create(sanitizedSavings)
 
         const sanitizedShareholder = {
             fName: sanitizeInput(req.body.fName),
@@ -329,29 +336,29 @@ exports.createShareholderBackup = async (req, res) => {
             lName: sanitizeInput(req.body.lName),
             arabLName: sanitizeInput(req.body.arabLName),
             fullName: sanitizeInput(req.body.fullName),
-            membersCode: req.body.membersCode,
+            membersCode: req.body.membersCode || undefined,
             DOB: sanitizeInput(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
-            status: withdrawn === "false" ? 1 : 0,
-            membershipStatus: withdrawn === "false" ? 1 : 0,
+            withdrawn: withdrawn,
+            status: withdrawn ? 1 : 0,
+            membershipStatus: withdrawn ? 1 : 0,
             dateOfDeath: null,
             resignationDate: null,
             createdByAdmin: adminIdWithOutTimestamp,
-            workplace: sanitizeInput(req.body.workplace),
+            workplace: workplaceDescription,
             email: sanitizeInput(req.body.email),
             poBox: sanitizeInput(req.body.poBox),
             zipCode: sanitizeInput(req.body.zipCode),
             Area: sanitizeInput(req.body.area),
-            Country: sanitizeInput(req.body.country),
+            Country: "كويت",
             joinDate: sanitizeInput(req.body.joinDate),
-            // quitDate: sanitizeInput(req.body.quitDate),
             address: address?._id,
             share: [share?._id],
-            savings: savings?._id
-        }
+            // savings: savings?._id
+        };
         console.log(sanitizedShareholder);
 
         const shareholder = await Shareholder.create(sanitizedShareholder);
@@ -360,6 +367,53 @@ exports.createShareholderBackup = async (req, res) => {
         res.status(400).send({ status: 1, message: err.message })
     }
 }
+exports.addShareholderSavingsForBackup = async (req, res) => {
+    try {
+        const membersCode = req.body.MemberCode;
+        console.log(membersCode);
+        const initialAmount = req.body.Saving;
+        const currentAmount = req.body.Saving;
+        const adminId = req.body.adminId;
+        const adminIdWithTimestamp = adminId.map(admin => ({ ...admin, timestamp: new Date() }));
+
+        // Find the shareholder based on the membersCode
+        const shareholder = await Shareholder.findOne({ membersCode: membersCode });
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: "Shareholder not found" });
+        }
+
+        // Get the joinDate from the shareholder document
+        const joinDate = shareholder.joinDate;
+
+        // Sanitize savings data
+        const sanitizedSavings = {
+            initialAmount: initialAmount,
+            currentAmount: currentAmount,
+            withdrawn: false,
+            adminId: adminIdWithTimestamp,
+            date: joinDate,
+            year: joinDate.getFullYear(),
+        };
+
+        // Create a new savings document
+        const savings = await Saving.create(sanitizedSavings);
+
+        // Update the shareholder's savings reference
+        shareholder.savings = savings._id;
+
+        // Save the updated shareholder
+        await shareholder.save();
+
+        res.status(200).send({
+            status: 0,
+            message: "Savings added to shareholder successfully",
+            shareholder,
+        });
+    } catch (err) {
+        res.status(400).send({ status: 1, message: err.message });
+    }
+};
 exports.editShareholder = async (req, res) => {
     try {
         const shareholderId = req.params.id;
@@ -536,7 +590,7 @@ exports.addSharesToShareholder = async (req, res) => {
         }
 
         const oldAmount = sharesRecord.currentAmount;
-        sharesRecord.currentAmount += newShareAmount;
+        sharesRecord.currentAmount += newShareAmount * 2;
         sharesRecord.amount += newShareAmount;
         sharesRecord.adminId.push({
             adminId: adminId,
@@ -867,11 +921,10 @@ exports.withdrawShares = async (req, res) => {
         const amountToWithdraw = req.body.amountToWithdraw;
         console.log(req.body);
 
-        const shareholder = await Shareholder.findById(id)
-            .populate({
-                path: 'share',
-                match: { year: year }
-            });
+        const shareholder = await Shareholder.findById(id).populate({
+            path: 'share',
+            match: { year: year },
+        });
 
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
@@ -881,10 +934,16 @@ exports.withdrawShares = async (req, res) => {
             const response = {
                 shareholder: shareholder,
                 share: shareholder.share,
-                link: `/printsavingswithdrawal/${shareholder.id}`
+                link: `/printsavingswithdrawal/${shareholder.id}`,
             };
-            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+            return res.status(200).send({
+                status: 0,
+                response,
+                message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.`,
+            });
         }
+
+        const oldAmount = shareholder.share ? shareholder.share[0].currentAmount : 0;
 
         if (shareholder.share) {
             const currentAmount = shareholder.share[0].currentAmount;
@@ -896,25 +955,41 @@ exports.withdrawShares = async (req, res) => {
             }
 
             const isFullyWithdrawn = amountToWithdraw === currentAmount;
-
             await Share.findByIdAndUpdate(shareholder.share[0]._id, {
                 $set: {
                     amount: totalShares - amountOfShares,
                     currentAmount: currentAmount - amountToWithdraw,
-                    withdrawn: isFullyWithdrawn
-                }
+                    withdrawn: isFullyWithdrawn,
+                },
             });
         }
 
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
+
         const response = {
             shareholder: shareholder,
             share: shareholder.share[0],
-            link: `/printshareswithdrawal/${shareholder.id}`
+            link: `/printshareswithdrawal/${shareholder.id}`,
         };
-        res.status(200).send({ status: 0, message: `${shareholder.fName} ${shareholder.lName} has withdrawn their savings.`, response });
 
+        const WithdrawShares = {
+            shareholder: id,
+            shares: shareholder.share[0]._id,
+            previousAmount: oldAmount,
+            newAmount: shareholder.share[0].currentAmount,
+            admin: userId,
+            type: "Shares",
+            withdrawalDate: Date.now(),
+        };
+
+        const updatedWithdrawalHistory = await WithdrawalHistory.create([WithdrawShares]);
+
+        res.status(200).send({
+            status: 0,
+            message: `${shareholder.fName} ${shareholder.lName} has withdrawn their savings.`,
+            response,
+        });
     } catch (err) {
         res.status(400).send({ status: 4, message: err.message });
     }
