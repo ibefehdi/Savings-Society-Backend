@@ -21,11 +21,11 @@ exports.getAllWorkplaceDropdown = async (req, res) => {
 
 exports.createWorkplace = async (req, res) => {
     try {
-        const { description, nameArabic } = req.body;
+        const { id, description, nameArabic } = req.body;
 
         // Create a new Workplace document
         const newWorkplace = new Workplace({
-
+            id,
             description,
             nameArabic
         });
