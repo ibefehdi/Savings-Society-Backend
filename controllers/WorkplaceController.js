@@ -22,7 +22,7 @@ exports.getAllWorkplaceDropdown = async (req, res) => {
 exports.createWorkplace = async (req, res) => {
     try {
         const { id, description, nameArabic } = req.body;
-
+        console.log(id)
         // Create a new Workplace document
         const newWorkplace = new Workplace({
             id,
@@ -32,7 +32,7 @@ exports.createWorkplace = async (req, res) => {
 
         // Save the new workplace to the database
         await newWorkplace.save();
-
+        console.log(newWorkplace);
         // Send a response back to the client
         res.status(201).send({
             message: 'Workplace created successfully',
