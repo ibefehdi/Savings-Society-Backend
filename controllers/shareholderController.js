@@ -490,54 +490,77 @@ exports.editShareholder = async (req, res) => {
 
 exports.addSavingsToShareholder = async (req, res) => {
     try {
+        // Retrieve and parse input values
         const id = req.params.id;
-        const newAmount = Number(req.body.newAmount);
-        const adminId = req.body.adminId; // Assume this is correctly a string
-        const year = new Date().getFullYear();
+        const newAmount = parseFloat(req.body.newAmount);
+        const adminId = req.body.adminId;
+        const year = parseInt(req.query.year, 10);
 
+        // Check if the parsed values are valid
+        if (isNaN(newAmount) || !adminId || isNaN(year)) {
+            return res.status(400).send({ message: "Invalid input data." });
+        }
+
+        // Find the shareholder
         const shareholder = await Shareholder.findById(id);
         if (!shareholder) {
             return res.status(404).send({ message: "Shareholder not found." });
         }
 
-        if (!shareholder.savings) {
-            shareholder.savings = {
+        // Initialize or update savings
+        let updatedSavings;
+        if (!shareholder.savings || !shareholder.savings._id) {
+            // If no existing savings are linked, create new savings data
+            updatedSavings = await Saving.create({
                 currentAmount: newAmount,
-                adminId: [{  // Properly initialized as an array
-                    adminId: adminId,
+                adminId: [{
+                    adminId,
                     amountBeforeChange: 0,
                     timestamp: new Date()
                 }],
                 withdrawn: false,
                 date: new Date(),
-                year: year
-            };
-
-        } else {
-            const oldAmount = shareholder.savings.currentAmount;
-            shareholder.savings.currentAmount += newAmount;
-            console.log("Checking adminId array:", shareholder.savings.adminId);
-
-            if (!Array.isArray(shareholder.savings.adminId)) {
-                shareholder.savings.adminId = [];
-            }
-            shareholder.savings.adminId.push({
-                adminId: adminId,
-                amountBeforeChange: oldAmount,
-                timestamp: new Date()
+                year
             });
 
+            // Link the new savings to the shareholder
+            shareholder.savings = updatedSavings._id;
+        } else {
+            // Update the existing savings
+            const savings = await Saving.findById(shareholder.savings._id);
+            if (!savings) {
+                return res.status(404).send({ message: "Associated savings not found." });
+            }
+
+            const oldAmount = savings.currentAmount;
+            const updatedAmount = oldAmount + newAmount;
+
+            // Update the savings record
+            updatedSavings = await Saving.findByIdAndUpdate(
+                savings._id,
+                {
+                    $set: { currentAmount: updatedAmount },
+                    $push: {
+                        adminId: {
+                            adminId,
+                            amountBeforeChange: oldAmount,
+                            timestamp: new Date()
+                        }
+                    }
+                },
+                { new: true }
+            );
         }
 
         // Save the updated shareholder record
         await shareholder.save();
 
-        // Record this transaction in deposit history
+        // Create a new deposit history record
         const depositSavings = {
             shareholder: id,
-            savings: shareholder.savings,
-            previousAmount: shareholder.savings.amountBeforeChange || 0,
-            newAmount: shareholder.savings.currentAmount,
+            savings: updatedSavings._id,
+            previousAmount: updatedSavings.adminId[updatedSavings.adminId.length - 1].amountBeforeChange,
+            newAmount: updatedSavings.currentAmount,
             admin: adminId,
             type: "Savings",
             depositDate: new Date()
@@ -546,13 +569,16 @@ exports.addSavingsToShareholder = async (req, res) => {
 
         res.status(200).send({
             message: "Savings updated successfully.",
-            savings: shareholder.savings,
-            shareholder: shareholder
+            savings: updatedSavings,
+            shareholder
         });
     } catch (err) {
-        res.status(400).send({ message: err.message });
+        console.error(err);
+        res.status(500).send({ message: "Internal server error." });
     }
 };
+
+
 
 
 
@@ -579,8 +605,8 @@ exports.addSharesToShareholder = async (req, res) => {
         } else {
             sharesRecord = await Share.create({
                 amount: newShareAmount,
-                initialAmount: newShareAmount,
-                currentAmount: newShareAmount,
+                initialAmount: newShareAmount * 2,
+                currentAmount: newShareAmount * 2,
                 adminId: [],
                 date: new Date(),
                 year: year
@@ -590,8 +616,8 @@ exports.addSharesToShareholder = async (req, res) => {
         }
 
         const oldAmount = sharesRecord.currentAmount;
-        sharesRecord.currentAmount += newShareAmount * 2;
-        sharesRecord.amount += newShareAmount;
+        sharesRecord.currentAmount = newShareAmount * 2;
+        sharesRecord.amount = newShareAmount;
         sharesRecord.adminId.push({
             adminId: adminId,
             amountBeforeChange: oldAmount,
@@ -868,49 +894,54 @@ exports.withdrawSavings = async (req, res) => {
 exports.getShareholderFinancials = async (req, res) => {
     try {
         const id = req.params.id;
-        // const year = new Date().getFullYear();
-
-        const shareholder = await Shareholder.findOne({ _id: id })
-            .populate({
-                path: 'share',
-                match: { year: 2000 }
-            })
-            .populate({
-                path: 'savings',
-                populate: {
-                    path: 'amanat',
-                    model: 'Amanat'
-                }
-            });
-
-        console.log(shareholder);
-
-        // Ensure we have the data available
-        if (!shareholder || (!shareholder.savings.length && !shareholder.share.length)) {
-            return res.status(404).json({
+        const year = parseInt(req.query.year, 10); // Parse year to an integer.
+        if (isNaN(year)) {
+            return res.status(400).json({
                 status: 1,
-                message: "No financials found for the given user and year."
+                message: "Invalid year provided."
             });
         }
 
+        const shareholder = await Shareholder.findOne({ _id: id })
+            .populate('savings')
+            .populate('share');
+
+        console.log(shareholder)
+        if (!shareholder) {
+            return res.status(404).json({
+                status: 1,
+                message: "Shareholder not found.",
+            });
+        }
+
+        // Get the savings data for the given year.
+        const savings = shareholder.savings && Number(shareholder.savings.year) === year ? shareholder.savings : null;
+
+        // Find the specific share data for the given year.
+        const share = shareholder.share.find(share => share.year === year);
+
+        // Prepare the response.
         const response = {
-            savings: shareholder.savings ? shareholder.savings : null,
-            shares: shareholder.share.length ? shareholder.share[0] : null,
-            amanat: shareholder.savings.amanat ? shareholder.savings.amanat : null
+            savings: savings,
+            shares: share || null,
+            amanat: savings && savings.amanat ? savings.amanat : null,
         };
 
-        res.status(200).send({
+        // Return the data to the client.
+        res.status(200).json({
             status: 0,
             response: response,
-            message: "The financials of the user have been sent"
+            message: "The financials of the user have been sent",
         });
     } catch (err) {
-        console.error('Error getting financials of this user. ', err)
+        console.error("Error getting financials of this user: ", err);
         res.status(500).json({
+            status: 1,
             message: "Error getting user: " + err.message
         });
     }
 };
+
 
 exports.withdrawShares = async (req, res) => {
     try {

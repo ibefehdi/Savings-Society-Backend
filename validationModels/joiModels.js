@@ -8,6 +8,7 @@ const joiUserSchema = Joi.object({
     isAdmin: Joi.boolean().default(null),
     phoneNo: Joi.string().default(null),
     email: Joi.string(),
+    userType: Joi.array(),
     permissions: Joi.object({
         shareholder: Joi.object({
             create: Joi.boolean().default(false).default(null),

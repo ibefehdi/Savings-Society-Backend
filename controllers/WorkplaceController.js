@@ -22,26 +22,38 @@ exports.getAllWorkplaceDropdown = async (req, res) => {
 exports.createWorkplace = async (req, res) => {
     try {
         const { id, description, nameArabic } = req.body;
-        console.log(id)
+
+        let newId;
+
+        if (id) {
+            // If id is provided in the request body, use it
+            newId = id;
+        } else {
+            // If id is not provided, generate a new id by finding the highest existing id and incrementing it by 1
+            const lastWorkplace = await Workplace.findOne().sort('-id').select('id');
+            newId = lastWorkplace ? Number(lastWorkplace.id) + 1 : 1;
+        }
+
         // Create a new Workplace document
         const newWorkplace = new Workplace({
-            id,
+            id: newId,
             description,
-            nameArabic
+            nameArabic,
         });
 
         // Save the new workplace to the database
         await newWorkplace.save();
         console.log(newWorkplace);
+
         // Send a response back to the client
         res.status(201).send({
             message: 'Workplace created successfully',
-            workplace: newWorkplace
+            workplace: newWorkplace,
         });
     } catch (error) {
         res.status(500).send({
             message: 'Failed to create workplace',
-            error: error.message
+            error: error.message,
         });
     }
 };

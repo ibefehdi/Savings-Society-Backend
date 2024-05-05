@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
     },
     phoneNo: { type: String, default: null },
     email: { type: String, default: null },
-    type: { type: String, enum: ['Shareholder', 'Rental'] },
+    type: [{ type: String, enum: ['Shareholder', 'Rental'] }],
     permissions: {
         shareholder: {
             create: { type: Boolean, default: false, default: null },
