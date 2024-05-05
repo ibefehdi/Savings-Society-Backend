@@ -14,6 +14,7 @@ const generateToken = (user) => {
         fName: user.fName,
         lName: user.lName,
         isAdmin: user.isAdmin,
+        type: user.type,
         permissions: user.permissions
     };
 
@@ -84,6 +85,7 @@ exports.createUser = async (req, res) => {
             password: await bcrypt.hash(req.body.password, 10),
             fName: sanitizeInput(req.body.fName),
             lName: sanitizeInput(req.body.lName),
+            type: req.body.userType,
             isActive: true,
             isAdmin: req.body.isAdmin,
             phoneNo: sanitizeInput(req.body.phoneNo),
@@ -152,8 +154,7 @@ exports.loginUser = async (req, res, next) => {
             return res.status(200).json({
                 code: 4,
                 message: "Authenticated successfully.",
-                token: token
-                // Do not need to send the token in the response body if it's set in the cookie
+                token: token,
             });
         });
     })(req, res, next);

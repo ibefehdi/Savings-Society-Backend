@@ -27,6 +27,8 @@ const bcrypt = require("bcrypt");
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerDefinition = require('./utils/swaggerDef');
+const Contract = require('./models/contractSchema')
+const Voucher = require('./models/voucherSchema')
 require('dotenv').config();
 const options = {
     swaggerDefinition,
@@ -147,6 +149,40 @@ cron.schedule('* * * * *', async () => {
     }
     console.log('Updated current prices for all Savings.');
 });
+async function createVouchers() {
+    try {
+        const currentDate = new Date();
+        const fiveDaysLater = new Date(currentDate);
+        fiveDaysLater.setDate(currentDate.getDate() + 5);
+
+        // Find contracts where the collection day is 5 days away
+        const contracts = await Contract.find({
+            collectionDay: fiveDaysLater.getDate(),
+            expired: false,
+        });
+
+        // Create vouchers for each contract
+        const vouchers = contracts.map((contract) => {
+            return new Voucher({
+                buildingId: contract.flatId.buildingId,
+                flatId: contract.flatId,
+                tenantId: contract.tenantId,
+                amount: contract.rentAmount,
+                pendingDate: fiveDaysLater,
+                status: 'Pending',
+            });
+        });
+
+        // Save the vouchers to the database
+        await Voucher.insertMany(vouchers);
+
+        console.log(`Created ${vouchers.length} vouchers.`);
+    } catch (error) {
+        console.error('Error creating vouchers:', error);
+    }
+}
+cron.schedule('0 0 * * *', createVouchers);
+
 app.use(logRequestsAndResponses);
 
 
