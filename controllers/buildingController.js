@@ -22,14 +22,33 @@ exports.createBuilding = async (req, res) => {
 
 exports.getAllBuildings = async (req, res) => {
     try {
-        const buildings = await Building.find().populate('address').lean();
-        const count = await Building.countDocuments();
+        const buildings = await Building.find({ type: 'Building' }).populate('address').lean();
+        const count = buildings.length;
         res.json({ data: buildings, count: count, metadata: { total: count } });
     } catch (error) {
         res.status(500).json({ error: 'Failed to retrieve buildings' });
     }
 };
+exports.getAllHalls = async (req, res) => {
+    try {
+        const halls = await Building.find({ type: "Hall" }).populate('address').lean();
+        const count = halls.length;
+        res.json({ data: halls, count: count, metadata: { total: count } });
 
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve buildings' });
+    }
+}
+exports.getAllBuildingsDropdown = async (req, res) => {
+    try {
+        const buildings = await Building.find().lean();
+
+        res.json({ data: buildings });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve buildings' });
+    }
+};
 exports.getBuildingById = async (req, res) => {
     try {
         const building = await Building.findById(req.params.id).populate('address').lean();
