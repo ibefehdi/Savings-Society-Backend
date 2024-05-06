@@ -9,6 +9,7 @@ exports.createFlat = async (req, res) => {
             flatNumber,
             tenantName,
             tenantContactNumber,
+            tenantCivilId,
             tenantType,
             startDate,
             endDate,
@@ -29,6 +30,7 @@ exports.createFlat = async (req, res) => {
             tenant = await Tenant.create({
                 name: tenantName,
                 contactNumber: tenantContactNumber,
+                civilId: tenantCivilId,
                 type: tenantType,
                 flatId: flat._id,
             });
@@ -173,11 +175,45 @@ exports.getAllFlats = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+exports.getAllFlatsDropdown = async (req, res) => {
+    try {
+
+        const flats = await Flat.find()
+            .populate('buildingId', 'name address')
+            .populate('tenant', 'name contactNumber type')
+
+
+        // Fetch the contract for each flat
+        const flatsWithContracts = await Promise.all(
+            flats.map(async (flat) => {
+                const contract = await Contract.findOne({ flatId: flat._id });
+                return {
+                    ...flat.toObject(),
+                    contract: contract,
+                };
+            })
+        );
+
+        res.status(200).json({
+            data: flatsWithContracts,
+
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
 // Get a flat by ID with populated fields
 exports.getFlatById = async (req, res) => {
     try {
         const flat = await Flat.findById(req.params.id)
-            .populate('buildingId', 'name address')
+            .populate({
+                path: 'buildingId',
+                populate: {
+                    path: 'address',
+                    model: 'Address' // Make sure to reference the model name correctly
+                }
+            })
             .populate('tenant');
 
         if (!flat) {
@@ -201,6 +237,43 @@ exports.getFlatById = async (req, res) => {
         } else {
             res.status(500).json({ error: 'Internal Server Error' });
         }
+    }
+};
+exports.getFlatsByBuildingId = async (req, res) => {
+    try {
+        const buildingId = req.params.buildingId;
+
+        // Find all flats with the specified building ID
+        const flats = await Flat.find({ buildingId })
+            .populate('tenant')
+            .exec();
+
+        // Fetch the contracts associated with each flat
+        const flatsWithContracts = await Promise.all(
+            flats.map(async (flat) => {
+                const contract = await Contract.findOne({ flatId: flat._id });
+                return {
+                    ...flat.toObject(),
+                    contract: contract,
+                };
+            })
+        );
+
+        const count = flatsWithContracts.length;
+
+        // Format the response
+        const response = {
+            data: flatsWithContracts,
+            count: count,
+            metadata: {
+                total: count,
+            },
+        };
+
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Error retrieving flats:', error);
+        res.status(500).json({ error: 'An error occurred while retrieving flats' });
     }
 };
 exports.removeTenant = async (req, res) => {

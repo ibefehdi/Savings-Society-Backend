@@ -17,6 +17,7 @@ const depositHistoryRoutes = require("./routes/depositHistoryRoutes");
 const withdrawalHistoryRoutes = require("./routes/withdrawalHistoryRoutes")
 const workplaceRoutes = require("./routes/workplaceRoutes")
 const buildingRoutes = require("./routes/buildingRoutes")
+const voucherRoutes = require("./routes/voucherRoutes");
 const flatRoutes = require("./routes/flatRoutes");
 const transactionRoutes = require("./routes/transactionRoutes")
 const logger = require("./utils/winstonLogger")
@@ -154,6 +155,8 @@ async function createVouchers() {
         const currentDate = new Date();
         const fiveDaysLater = new Date(currentDate);
         fiveDaysLater.setDate(currentDate.getDate() + 5);
+        console.log('current date:', currentDate);
+        console.log('five days later:', fiveDaysLater);
 
         // Find contracts where the collection day is 5 days away
         const contracts = await Contract.find({
@@ -161,27 +164,43 @@ async function createVouchers() {
             expired: false,
         });
 
-        // Create vouchers for each contract
-        const vouchers = contracts.map((contract) => {
-            return new Voucher({
+        const vouchers = [];
+
+        for (const contract of contracts) {
+            // Check if a voucher has already been created for the current month
+            const existingVoucher = await Voucher.findOne({
                 buildingId: contract.flatId.buildingId,
                 flatId: contract.flatId,
                 tenantId: contract.tenantId,
-                amount: contract.rentAmount,
-                pendingDate: fiveDaysLater,
-                status: 'Pending',
+                pendingDate: {
+                    $gte: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
+                    $lt: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
+                },
             });
-        });
+
+            if (!existingVoucher) {
+                // Create a new voucher if one doesn't exist for the current month
+                const voucher = new Voucher({
+                    buildingId: contract.flatId.buildingId,
+                    flatId: contract.flatId,
+                    tenantId: contract.tenantId,
+                    amount: contract.rentAmount,
+                    pendingDate: fiveDaysLater,
+                    status: 'Pending',
+                });
+
+                vouchers.push(voucher);
+            }
+        }
 
         // Save the vouchers to the database
         await Voucher.insertMany(vouchers);
-
         console.log(`Created ${vouchers.length} vouchers.`);
     } catch (error) {
         console.error('Error creating vouchers:', error);
     }
 }
-cron.schedule('0 0 * * *', createVouchers);
+cron.schedule('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);
 
@@ -198,5 +217,7 @@ app.use('/api/v1/', workplaceRoutes)
 app.use('/api/v1/', buildingRoutes)
 app.use('/api/v1/', flatRoutes)
 app.use('/api/v1/', transactionRoutes)
+app.use('/api/v1/', voucherRoutes)
+
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
