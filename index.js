@@ -17,6 +17,7 @@ const depositHistoryRoutes = require("./routes/depositHistoryRoutes");
 const withdrawalHistoryRoutes = require("./routes/withdrawalHistoryRoutes")
 const workplaceRoutes = require("./routes/workplaceRoutes")
 const buildingRoutes = require("./routes/buildingRoutes")
+const bookingRoutes = require("./routes/bookingRoutes")
 const voucherRoutes = require("./routes/voucherRoutes");
 const flatRoutes = require("./routes/flatRoutes");
 const transactionRoutes = require("./routes/transactionRoutes")
@@ -218,6 +219,7 @@ app.use('/api/v1/', buildingRoutes)
 app.use('/api/v1/', flatRoutes)
 app.use('/api/v1/', transactionRoutes)
 app.use('/api/v1/', voucherRoutes)
+app.use('/api/v1/', bookingRoutes)
 
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
