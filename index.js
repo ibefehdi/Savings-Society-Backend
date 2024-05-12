@@ -163,7 +163,7 @@ async function createVouchers() {
         const contracts = await Contract.find({
             collectionDay: fiveDaysLater.getDate(),
             expired: false,
-        });
+        }).populate('flatId').populate('tenantId');
 
         const vouchers = [];
 
@@ -177,8 +177,8 @@ async function createVouchers() {
                     $gte: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
                     $lt: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
                 },
-            });
-
+            }).populate('flatId');
+            console.log(existingVoucher)
             if (!existingVoucher) {
                 // Create a new voucher if one doesn't exist for the current month
                 const voucher = new Voucher({
@@ -191,6 +191,7 @@ async function createVouchers() {
                 });
 
                 vouchers.push(voucher);
+                console.log(voucher);
             }
         }
 

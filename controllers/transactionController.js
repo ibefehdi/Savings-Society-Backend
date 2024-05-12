@@ -36,13 +36,12 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        const { page = 1, limit = 10, type } = req.query;
-        const skip = (page - 1) * limit;
+        const { page = 1, resultsPerPage = 10, type } = req.query;
+        const skip = (page - 1) * resultsPerPage;
         console.log(type)
-        const [transactions, count] = await Promise.all([
-            Transaction.find({ transactionFrom: type }).populate('bookingId').populate('buildingId').skip(skip).limit(limit).exec(),
-            Transaction.countDocuments(),
-        ]);
+        const transactions = await Transaction.find({ transactionFrom: type }).populate('buildingId').populate('flatId').populate('bookingId').skip(skip)
+            .limit(resultsPerPage).exec();
+        const count = await Transaction.countDocuments();
         console.log(transactions);
         res.status(200).json({
             data: transactions,
