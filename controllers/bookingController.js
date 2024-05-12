@@ -3,6 +3,7 @@ const Booking = require('../models/bookingSchema');
 const Tenant = require('../models/tenantSchema')
 const Transaction = require('../models/transactionSchema');
 const Building = require('../models/buildingSchema');
+const Voucher = require('../models/voucherSchema')
 exports.makeABooking = async (req, res) => {
     try {
         const { hallId, date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, tenantType } = req.body;
@@ -53,6 +54,15 @@ exports.makeABooking = async (req, res) => {
         // Populate the customer field in the booking
         const populatedBooking = await Booking.findById(booking._id).populate('customer');
         const hall = await Building.findById(hallId);
+        const voucher = new Voucher({
+            buildingId: hallId,
+            tenantId: tenant._id,
+            amount: rate,
+            
+            paidDate: new Date(),
+            status: 'Paid',
+        });
+        await voucher.save();
         const transactionFromBooking = new Transaction({
             buildingId: hallId,
             amount: rate,
@@ -182,7 +192,7 @@ exports.getBookingsByHallAndDate = async (req, res) => {
             hallId,
             date: new Date(date),
             active: true
-        }).populate('customer'); // Populate customer details
+        }).populate('customer'); 
         console.log(bookings);
         // Format the bookings data for the timeline
         const formattedBookings = bookings.map((booking) => ({
