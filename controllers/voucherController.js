@@ -1,7 +1,11 @@
 const Voucher = require('../models/voucherSchema');
 const Transaction = require('../models/transactionSchema');
+const Tenant = require('../models/tenantSchema');
 exports.getAllVouchers = async (req, res) => {
     try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
         const vouchers = await Voucher.find()
             .populate({
                 path: 'flatId',
@@ -11,9 +15,11 @@ exports.getAllVouchers = async (req, res) => {
                 },
             })
             .populate('tenantId')
-            .populate('buildingId');
+            .populate('buildingId').skip(skip)
+            .limit(resultsPerPage);
 
-        const count = vouchers.length;
+
+        const count = await Voucher.countDocuments();
 
         res.status(200).json({
             data: vouchers,
@@ -104,3 +110,46 @@ exports.payVoucher = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+exports.createVoucher = async (req, res) => {
+    try {
+        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status } = req.body;
+
+        const voucherData = {
+            buildingId,
+            flatId,
+            tenantId,
+            amount,
+            status,
+        };
+
+        if (status === 'Paid') {
+            voucherData.paidDate = paidDate;
+        } else {
+            voucherData.pendingDate = pendingDate;
+        }
+
+        const [tenant, createdVoucher] = await Promise.all([
+            Tenant.findById(tenantId),
+            Voucher.create(voucherData),
+        ]);
+
+        if (status === 'Paid') {
+            const transactionData = {
+                buildingId,
+                flatId,
+                amount,
+                date: paidDate,
+                type: "Income",
+                transactionFrom: flatId ? "Flat" : "Hall",
+                description: `Voucher Paid By ${tenant.name}`,
+            };
+
+            await Transaction.create(transactionData);
+        }
+
+        res.status(201).json(createdVoucher);
+    } catch (error) {
+        console.error('Error creating voucher:', error);
+        res.status(500).json({ error: 'An error occurred while creating the voucher' });
+    }
+};

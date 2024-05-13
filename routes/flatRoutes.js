@@ -9,6 +9,7 @@ router.get('/flats', flatController.getAllFlats);
 // Get a flat by ID
 router.get('/flat/:id', flatController.getFlatById);
 router.get('/flatsbybuildingid/:buildingId', flatController.getFlatsByBuildingId)
+router.get('/tenantsbyflatid/:id', flatController.getTenantByFlatId)
 
 router.put('/addtenant/:id', flatController.assignTenantToFlat)
 
