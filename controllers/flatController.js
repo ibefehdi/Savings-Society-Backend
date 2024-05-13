@@ -369,3 +369,35 @@ exports.replaceTenant = async (req, res) => {
         }
     }
 };
+exports.getTenantByFlatId = async (req, res) => {
+    try {
+        const flatId = req.params.id;
+
+        // Find the flat by its ID
+        const flat = await Flat.findById(flatId);
+        if (!flat) {
+            return res.status(404).json({ message: 'Flat not found' });
+        }
+
+        // Find the tenant associated with the flat
+        const tenant = await Tenant.findOne({ flatId: flat._id });
+        if (!tenant) {
+            return res.status(404).json({ message: 'Tenant not found for the specified flat' });
+        }
+
+        // Find the contract associated with the flat
+        const contract = await Contract.findOne({ flatId: flat._id });
+
+        // Create an object containing the flat, tenant, and contract
+        const flatWithTenantAndContract = {
+            ...flat.toObject(),
+            tenant: tenant,
+            contract: contract,
+        };
+
+        res.status(200).json({ data: [flatWithTenantAndContract] });
+    } catch (error) {
+        console.error('Error retrieving tenant and contract by flat ID:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
