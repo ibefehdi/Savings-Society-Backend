@@ -243,7 +243,9 @@ exports.editUser = async (req, res) => {
             ...(req.body.isAdmin !== undefined && { isAdmin: req.body.isAdmin }), // Explicit check for boolean
             ...(req.body.phoneNo && { phoneNo: sanitizeInput(req.body.phoneNo) }),
             ...(req.body.email && { email: sanitizeInput(req.body.email) }),
-            ...(req.body.permissions && { permissions: sanitizedPermissions })
+            ...(req.body.permissions && { permissions: sanitizedPermissions }),
+            ...(req.body.userType && { type: req.body.userType }),
+
         };
 
         // Find the user by id and update their information
