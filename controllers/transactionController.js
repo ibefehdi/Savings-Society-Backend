@@ -41,7 +41,7 @@ exports.getAllTransactions = async (req, res) => {
         console.log(type)
         const transactions = await Transaction.find({ transactionFrom: type }).populate('buildingId').populate('flatId').populate('bookingId').skip(skip)
             .limit(resultsPerPage).exec();
-        const count = await Transaction.countDocuments();
+        const count = await Transaction.countDocuments({ transactionFrom: type });
         console.log(transactions);
         res.status(200).json({
             data: transactions,

@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
 const contractSchema = new mongoose.Schema({
+
     flatId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Flat',
-        required: true,
     },
     tenantId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -29,6 +29,22 @@ const contractSchema = new mongoose.Schema({
         max: 31,
     },
     expired: { type: Boolean, required: true },
-});
 
+});
+contractSchema.pre('save', function (next) {
+    if (this.endDate <= new Date() && !this.expired) {
+        this.expired = true;
+        this.flatId = null
+        this.model('ContractHistory').create({
+            flatId: this.flatId,
+            tenantId: this.tenantId,
+            startDate: this.startDate,
+            endDate: this.endDate,
+            expired: true,
+            rentAmount: this.rentAmount,
+            collectionDay: this.collectionDay,
+        });
+    }
+    next();
+});
 module.exports = mongoose.model('Contract', contractSchema);

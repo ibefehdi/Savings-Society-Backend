@@ -19,6 +19,8 @@ const workplaceRoutes = require("./routes/workplaceRoutes")
 const buildingRoutes = require("./routes/buildingRoutes")
 const bookingRoutes = require("./routes/bookingRoutes")
 const voucherRoutes = require("./routes/voucherRoutes");
+const contractRoutes = require("./routes/contractRoutes");
+
 const flatRoutes = require("./routes/flatRoutes");
 const transactionRoutes = require("./routes/transactionRoutes")
 const logger = require("./utils/winstonLogger")
@@ -202,6 +204,34 @@ async function createVouchers() {
         console.error('Error creating vouchers:', error);
     }
 }
+cron.schedule('0 0 * * *', async () => {
+    try {
+        const expiredContracts = await Contract.find({
+            endDate: { $lte: new Date() },
+            expired: false,
+        });
+
+        for (const contract of expiredContracts) {
+            contract.expired = true;
+            contract.flatId = null
+            await contract.save();
+
+            await ContractHistory.create({
+                flatId: contract.flatId,
+                tenantId: contract.tenantId,
+                startDate: contract.startDate,
+                endDate: contract.endDate,
+                expired: true,
+                rentAmount: contract.rentAmount,
+                collectionDay: contract.collectionDay,
+            });
+        }
+
+        console.log('Contracts updated successfully');
+    } catch (error) {
+        console.error('Error updating contracts:', error);
+    }
+});
 cron.schedule('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);
@@ -221,6 +251,7 @@ app.use('/api/v1/', flatRoutes)
 app.use('/api/v1/', transactionRoutes)
 app.use('/api/v1/', voucherRoutes)
 app.use('/api/v1/', bookingRoutes)
+app.use('/api/v1/', contractRoutes)
 
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
