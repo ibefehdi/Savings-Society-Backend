@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Flat = require('../models/flatSchema');
 const Tenant = require('../models/tenantSchema');
 const Contract = require('../models/contractSchema');
+const ContractHistory = require('../models/contractHistorySchema')
 exports.createFlat = async (req, res) => {
     try {
         const {
@@ -279,16 +280,26 @@ exports.getFlatsByBuildingId = async (req, res) => {
 exports.removeTenant = async (req, res) => {
     try {
         const flat = await Flat.findById(req.params.id);
-
         if (!flat) {
             return res.status(404).json({ error: 'Flat not found' });
         }
 
         // Find the contract associated with the flat
-        const contract = await Contract.findOne({ flatId: flat._id });
-
+        const contract = await Contract.findOne({ flatId: flat._id }).populate();
         if (contract) {
+            // Create a new contract history document
+            await ContractHistory.create({
+                flatId: contract.flatId,
+                tenantId: contract.tenantId,
+                startDate: contract.startDate,
+                endDate: contract.endDate,
+                expired: true,
+                rentAmount: contract.rentAmount,
+                collectionDay: contract.collectionDay,
+            });
+
             // Update the contract as expired
+            contract.flatId = null;
             contract.expired = true;
             await contract.save();
         }

@@ -10,7 +10,7 @@ router.get('/flats', flatController.getAllFlats);
 router.get('/flat/:id', flatController.getFlatById);
 router.get('/flatsbybuildingid/:buildingId', flatController.getFlatsByBuildingId)
 router.get('/tenantsbyflatid/:id', flatController.getTenantByFlatId)
-
+router.get('/removetenant/:id', flatController.removeTenant)
 router.put('/addtenant/:id', flatController.assignTenantToFlat)
 
 router.put('/replacetenant/:id', flatController.replaceTenant);
