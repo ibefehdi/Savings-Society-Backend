@@ -79,3 +79,207 @@ exports.getTransactionsByType = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
+
+exports.getExpensesByBuilding = async (req, res) => {
+    try {
+        const expenses = await Transaction.aggregate([
+            { $match: { type: 'Expense' } },
+            {
+                $group: {
+                    _id: '$buildingId',
+                    totalExpenses: { $sum: '$amount' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'building',
+                },
+            },
+            {
+                $unwind: '$building',
+            },
+            {
+                $project: {
+                    _id: 0,
+                    buildingId: '$_id',
+                    buildingName: '$building.name',
+                    buildingType: '$building.type',
+                    totalExpenses: 1,
+                },
+            },
+        ]);
+
+        const totalExpenses = expenses.reduce((sum, expense) => sum + expense.totalExpenses, 0);
+
+        res.json({ expenses, totalExpenses });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
+
+exports.getIncomeByBuilding = async (req, res) => {
+    try {
+        const incomes = await Transaction.aggregate([
+            { $match: { type: 'Income' } },
+            {
+                $group: {
+                    _id: '$buildingId',
+                    totalIncome: { $sum: '$amount' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'building',
+                },
+            },
+            {
+                $unwind: '$building',
+            },
+            {
+                $project: {
+                    _id: 0,
+                    buildingId: '$_id',
+                    buildingName: '$building.name',
+                    buildingType: '$building.type',
+                    totalIncome: 1,
+                },
+            },
+        ]);
+
+        const totalIncome = incomes.reduce((sum, income) => sum + income.totalIncome, 0);
+
+        res.json({ incomes, totalIncome });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
+
+exports.getExpensesByFlat = async (req, res) => {
+    try {
+        const expenses = await Transaction.aggregate([
+            { $match: { type: 'Expense', transactionFrom: 'Flat' } },
+            {
+                $group: {
+                    _id: '$flatId',
+                    totalExpenses: { $sum: '$amount' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'flats',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'flat',
+                },
+            },
+            {
+                $unwind: '$flat',
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'flat.buildingId',
+                    foreignField: '_id',
+                    as: 'building',
+                },
+            },
+            {
+                $unwind: '$building',
+            },
+            {
+                $project: {
+                    _id: 0,
+                    flatId: '$_id',
+                    flatNumber: '$flat.flatNumber',
+                    buildingName: '$building.name',
+                    totalExpenses: 1,
+                },
+            },
+        ]);
+
+        res.json({ expenses });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
+
+exports.getIncomeByFlat = async (req, res) => {
+    try {
+        const incomes = await Transaction.aggregate([
+            { $match: { type: 'Income', transactionFrom: 'Flat' } },
+            {
+                $group: {
+                    _id: '$flatId',
+                    totalIncome: { $sum: '$amount' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'flats',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'flat',
+                },
+            },
+            {
+                $unwind: '$flat',
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'flat.buildingId',
+                    foreignField: '_id',
+                    as: 'building',
+                },
+            },
+            {
+                $unwind: '$building',
+            },
+            {
+                $project: {
+                    _id: 0,
+                    flatId: '$_id',
+                    flatNumber: '$flat.flatNumber',
+                    buildingName: '$building.name',
+                    totalIncome: 1,
+                },
+            },
+        ]);
+
+        res.json({ incomes });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
+
+exports.getTransactionsByDateRange = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const transactions = await Transaction.find({
+            date: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        });
+        res.json({ transactions });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
+
+exports.getTransactionsByBuildingAndDateRange = async (req, res) => {
+    try {
+        const { buildingId, startDate, endDate } = req.query;
+        const transactions = await Transaction.find({
+            buildingId,
+            date: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        });
+        res.json({ transactions });
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred' });
+    }
+};
