@@ -16,11 +16,13 @@ exports.createFlat = async (req, res) => {
             endDate,
             rentAmount,
             collectionDay,
+            floorNumber
         } = req.body;
 
         const flat = await Flat.create({
             buildingId: buildingId,
             flatNumber: flatNumber,
+            floorNumber: floorNumber,
             vacant: true
         });
 

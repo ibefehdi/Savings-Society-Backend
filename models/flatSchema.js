@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const flatSchema = new mongoose.Schema({
     buildingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Building', required: true },
     flatNumber: { type: String, required: true },
+    floorNumber: { type: String, required: true },
     tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant' },
     vacant: { type: Boolean, required: true },
 });

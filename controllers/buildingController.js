@@ -42,7 +42,7 @@ exports.getAllHalls = async (req, res) => {
 }
 exports.getAllBuildingsDropdown = async (req, res) => {
     try {
-        const buildings = await Building.find().lean();
+        const buildings = await Building.find({ type: "Building" }).lean();
 
         res.json({ data: buildings });
     } catch (error) {
