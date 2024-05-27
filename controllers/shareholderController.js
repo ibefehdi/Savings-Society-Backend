@@ -172,7 +172,23 @@ exports.getShareholderById = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 }
-
+exports.getShareholderByMembersCode = async (req, res) => {
+    try {
+      const { membersCode } = req.body;
+      const shareholder = await Shareholder.findOne({ membersCode })
+        .populate('savings')
+        .populate('share')
+        .populate('address');
+  
+      if (!shareholder) {
+        return res.status(404).send({ message: 'Shareholder not found' });
+      }
+  
+      res.status(200).send({ shareholder });
+    } catch (err) {
+      res.status(500).send({ message: err.message });
+    }
+  };
 exports.createShareholder = async (req, res) => {
     try {
         // Sanitize and create address
