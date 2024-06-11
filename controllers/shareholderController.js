@@ -174,21 +174,21 @@ exports.getShareholderById = async (req, res) => {
 }
 exports.getShareholderByMembersCode = async (req, res) => {
     try {
-      const { membersCode } = req.body;
-      const shareholder = await Shareholder.findOne({ membersCode })
-        .populate('savings')
-        .populate('share')
-        .populate('address');
-  
-      if (!shareholder) {
-        return res.status(404).send({ message: 'Shareholder not found' });
-      }
-  
-      res.status(200).send({ shareholder });
+        const { membersCode } = req.body;
+        const shareholder = await Shareholder.findOne({ membersCode })
+            .populate('savings')
+            .populate('share')
+            .populate('address');
+
+        if (!shareholder) {
+            return res.status(404).send({ message: 'Shareholder not found' });
+        }
+
+        res.status(200).send({ shareholder });
     } catch (err) {
-      res.status(500).send({ message: err.message });
+        res.status(500).send({ message: err.message });
     }
-  };
+};
 exports.createShareholder = async (req, res) => {
     try {
         // Sanitize and create address
@@ -358,9 +358,9 @@ exports.createShareholderBackup = async (req, res) => {
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
-            withdrawn: withdrawn,
-            status: withdrawn ? 1 : 0,
-            membershipStatus: withdrawn ? 1 : 0,
+            withdrawn: false,
+            status: 0,
+            membershipStatus: 0,
             dateOfDeath: null,
             resignationDate: null,
             createdByAdmin: adminIdWithOutTimestamp,
