@@ -25,11 +25,12 @@ exports.getAllShareholders = async (req, res) => {
         const lName = req.query.lName || '';
         const civilId = req.query.civilId || '';
         const membershipStatus = req.query.membershipStatus || '';
+        const workplace = req.query.workplace || '';
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
         const status = req.query.status || 0;
         const currentYear = new Date().getFullYear();
-
+        console.log(workplace)
         let queryConditions = {
         };
 
@@ -53,6 +54,9 @@ exports.getAllShareholders = async (req, res) => {
         }
         if (status) {
             queryConditions.status = status || 0;
+        }
+        if (workplace) {
+            queryConditions.workplace = workplace || '';
         }
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
@@ -273,20 +277,24 @@ exports.makeUserInactive = async (req, res) => {
     try {
         const id = req.params.id;
         const quitDate = new Date(req.body.quitDate);
-
+        const status = req.body.status;
         const shareholder = await Shareholder.findById(id);
-
+        console.log(status)
         if (!shareholder) {
             return res.status(404).send({ status: 0, message: 'Shareholder not found' });
         }
-
-        shareholder.status = 1;
-        shareholder.membershipStatus = 1;
+        console.log("quitDate: " + quitDate + " status: " + status)
+        shareholder.status = status;
+        if (status === 2) {
+            shareholder.membershipStatus = 1;
+        } else {
+            shareholder.membershipStatus = status;
+        }
         shareholder.quitDate = quitDate;
 
         await shareholder.save();
 
-        res.status(200).send({ status: 1, message: 'Shareholder updated successfully' });
+        res.status(200).send({ status: 1, message: 'Shareholder updated successfully', shareholder });
     } catch (err) {
         res.status(400).send({ status: 0, message: err.message });
     }
@@ -510,7 +518,7 @@ exports.addSavingsToShareholder = async (req, res) => {
         const id = req.params.id;
         const newAmount = parseFloat(req.body.newAmount);
         const adminId = req.body.adminId;
-        const year = parseInt(req.query.year, 10);
+        const year = req.body.year
 
         // Check if the parsed values are valid
         if (isNaN(newAmount) || !adminId || isNaN(year)) {
@@ -910,7 +918,10 @@ exports.withdrawSavings = async (req, res) => {
 exports.getShareholderFinancials = async (req, res) => {
     try {
         const id = req.params.id;
-        const year = parseInt(req.query.year, 10); // Parse year to an integer.
+        // const year = parseInt(req.query.year, 10); // Parse year to an integer.
+        const year = req.query.year;
+
+        console.log("This is the year", year)
         if (isNaN(year)) {
             return res.status(400).json({
                 status: 1,
@@ -931,11 +942,11 @@ exports.getShareholderFinancials = async (req, res) => {
         }
 
         // Get the savings data for the given year.
-        const savings = shareholder.savings && Number(shareholder.savings.year) === year ? shareholder.savings : null;
-
+        const savings = shareholder.savings ? shareholder.savings : null;
+        console.log(savings)
         // Find the specific share data for the given year.
-        const share = shareholder.share.find(share => share.year === year);
-
+        const share = shareholder.share.find(share => share.year == year);
+        console.log(share)
         // Prepare the response.
         const response = {
             savings: savings,
