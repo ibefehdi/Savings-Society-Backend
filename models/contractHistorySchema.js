@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const contractHistorySchema = new mongoose.Schema({
-    flatId: { type: mongoose.Schema.Types.ObjectId, ref: 'Flat', required: true },
+    flatId: { type: mongoose.Schema.Types.ObjectId, ref: 'Flat' },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },

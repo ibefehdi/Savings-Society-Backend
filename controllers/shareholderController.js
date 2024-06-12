@@ -343,16 +343,16 @@ exports.createShareholderBackup = async (req, res) => {
         }));
         const adminIdWithOutTimestamp = adminId[0]?.admin
         console.log("This is the adminId", adminIdWithOutTimestamp);
-        // const sanitizedSavings = {
-        //     initialAmount: sanitizeInput(req.body.savingsInitialPrice),
-        //     currentAmount: sanitizeInput(req.body.savingsInitialPrice),
-        //     withdrawn: withdrawn,
-        //     adminId: adminIdWithTimestamp,
-        //     date: new Date(approvalDate),
-        //     year: new Date(approvalDate).getFullYear(),
+        const sanitizedSavings = {
+            initialAmount: sanitizeInput(req.body.savingsInitialPrice),
+            currentAmount: sanitizeInput(req.body.savingsInitialPrice),
+            withdrawn: withdrawn,
+            adminId: adminIdWithTimestamp,
+            date: new Date(approvalDate),
+            year: new Date(approvalDate).getFullYear(),
 
-        // }
-        // const savings = await Saving.create(sanitizedSavings)
+        }
+        const savings = await Saving.create(sanitizedSavings)
 
         const sanitizedShareholder = {
             fName: sanitizeInput(req.body.fName),
@@ -381,7 +381,7 @@ exports.createShareholderBackup = async (req, res) => {
             joinDate: sanitizeInput(req.body.joinDate),
             address: address?._id,
             share: [share?._id],
-            // savings: savings?._id
+            savings: savings?._id
         };
         console.log(sanitizedShareholder);
 

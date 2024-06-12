@@ -3,7 +3,7 @@ const router = express.Router();
 const flatController = require('../controllers/flatController');
 
 router.post('/createflat', flatController.createFlat);
-
+router.post('/flats/backup', flatController.createFlatBackup);
 router.get('/flats', flatController.getAllFlats);
 
 // Get a flat by ID

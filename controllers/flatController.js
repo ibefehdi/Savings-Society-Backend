@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Flat = require('../models/flatSchema');
 const Tenant = require('../models/tenantSchema');
+const Building = require('../models/buildingSchema');
 const Contract = require('../models/contractSchema');
 const ContractHistory = require('../models/contractHistorySchema')
 exports.createFlat = async (req, res) => {
@@ -412,5 +413,90 @@ exports.getTenantByFlatId = async (req, res) => {
     } catch (error) {
         console.error('Error retrieving tenant and contract by flat ID:', error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+};
+exports.createFlatBackup = async (req, res) => {
+    try {
+        const {
+            buildingNo,
+            tenantName,
+            tenantContactNumber,
+            tenantCivilId,
+            startDate,
+            endDate,
+            rentAmount,
+            floorNumber
+        } = req.body;
+        console.log(req.body)
+        // Find the building using buildingNo
+        const building = await Building.findOne({ no: buildingNo });
+        if (!building) {
+            return res.status(404).json({ error: 'Building not found' });
+        }
+
+        const flat = await Flat.create({
+            buildingId: building._id,
+            floorNumber: floorNumber,
+            vacant: true
+        });
+
+        let tenant = null;
+        let contract = null;
+
+        if (tenantName && tenantContactNumber && tenantCivilId) {
+            tenant = await Tenant.create({
+                name: tenantName,
+                contactNumber: tenantContactNumber,
+                civilId: tenantCivilId,
+                flatId: flat._id,
+            });
+
+            if (tenant) {
+                // Create a contract if tenant and contract details are provided
+                if (startDate && endDate && rentAmount) {
+                    const today = new Date();
+                    const parsedEndDate = new Date(endDate);
+                    const expired = parsedEndDate <= today;
+                    console.log(expired);
+                    contract = await Contract.create({
+                        flatId: flat._id,
+                        tenantId: tenant._id,
+                        startDate: startDate,
+                        endDate: endDate,
+                        rentAmount: rentAmount,
+                        expired: expired,
+                        collectionDay: 5
+                    });
+
+                    if (expired) {
+                        flat.vacant = true;
+                        flat.rentAmount = 0
+                    } else {
+                        flat.vacant = false;
+                        flat.tenant = tenant._id;
+
+                    }
+                    await flat.save();
+                }
+            }
+        }
+
+        const populatedFlat = await Flat.findById(flat._id)
+            .populate('tenant')
+            .populate('buildingId');
+
+        res.status(201).json({
+            tenant: tenant,
+            flat: populatedFlat,
+            building: populatedFlat.buildingId,
+            contract: contract,
+        });
+    } catch (err) {
+        console.error(err);
+        if (err.name === 'ValidationError') {
+            res.status(400).json({ error: err.message });
+        } else {
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
     }
 };
