@@ -425,7 +425,8 @@ exports.createFlatBackup = async (req, res) => {
             startDate,
             endDate,
             rentAmount,
-            floorNumber
+            floorNumber,
+            flatNumber
         } = req.body;
         console.log(req.body)
         // Find the building using buildingNo
@@ -437,6 +438,7 @@ exports.createFlatBackup = async (req, res) => {
         const flat = await Flat.create({
             buildingId: building._id,
             floorNumber: floorNumber,
+            flatNumber: flatNumber,
             vacant: true
         });
 
