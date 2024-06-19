@@ -84,6 +84,8 @@ app.use(
         },
     })
 );
+const schedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 L * *';
+console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
 app.use((req, res, next) => {
@@ -129,29 +131,29 @@ passport.deserializeUser(async function (id, done) {
         done(error);
     }
 });
-// cron.schedule('* * * * *', async () => {
-//     const shares = await Share.find();
-//     for (let share of shares) {
-//         try {
-//             const currentAmount = await share.calculateCurrentPrice();
-//             await Share.updateOne({ _id: share._id }, { $set: { currentAmount: currentAmount } });
-//         } catch (err) {
-//             console.error('Error updating share:', err);
-//         }
-//     }
-//     console.log('Updated current prices for all shares.');
-//     const savings = await Saving.find();
-//     for (let saving of savings) {
-//         try {
-//             const currentAmount = await saving.calculateCurrentPrice();
-//             console.log("This is the current amount", currentAmount);
-//             await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
-//         } catch (err) {
-//             console.error('Error updating share:', err);
-//         }
-//     }
-//     console.log('Updated current prices for all Savings.');
-// });
+cron.schedule(schedule, async () => {
+    const shares = await Share.find();
+    for (let share of shares) {
+        try {
+            const currentAmount = await share.calculateCurrentPrice();
+            await Share.updateOne({ _id: share._id }, { $set: { currentAmount: currentAmount } });
+        } catch (err) {
+            console.error('Error updating share:', err);
+        }
+    }
+    console.log('Updated current prices for all shares.');
+    const savings = await Saving.find();
+    for (let saving of savings) {
+        try {
+            const currentAmount = await saving.calculateCurrentPrice();
+            console.log("This is the current amount", currentAmount);
+            await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
+        } catch (err) {
+            console.error('Error updating share:', err);
+        }
+    }
+    console.log('Updated current prices for all Savings.');
+});
 async function createVouchers() {
     try {
         const currentDate = new Date();

@@ -12,18 +12,21 @@ const adminIdSchema = new mongoose.Schema({
     amountBeforeChange: { type: Number },
     timestamp: { type: Date }
 });
-
+const purchaseSchema = new mongoose.Schema({
+    amount: { type: Number, required: true }, // Number of shares
+    initialAmount: { type: Number, required: true }, // Initial value of shares
+    currentAmount: { type: Number, required: true }, // Current value of shares
+    date: { type: Date, required: true },
+    lastUpdateDate: { type: Date },
+});
 const shareSchema = new mongoose.Schema({
-    amount: { type: Number },
-    initialAmount: { type: Number },
-    currentAmount: { type: Number },
-    date: { type: Date },
+    purchases: [purchaseSchema],
+    totalAmount: { type: Number, default: 0 },
+    totalShareAmount: { type: Number, default: 0 },
     year: { type: Number },
     serial: { type: String },
     adminId: [adminIdSchema],
-    timeSinceLastUpdate: { type: Date },
     withdrawn: Boolean,
-
 }, { timestamps: true });
 
 // Calculate the current amount based on the initial amount and the time elapsed
@@ -82,73 +85,191 @@ const shareSchema = new mongoose.Schema({
 //     // Return the updated (or unchanged) current amount, rounded and converted to a number
 //     return Number(currentAmount);
 // };
+// shareSchema.methods.calculateCurrentPrice = async function () {
+//     console.log("Calculating current price for share");
+
+//     const now = new Date();
+//     const purchaseDate = this.date;
+//     const currentYear = now.getFullYear();
+//     const withdrawn = this.withdrawn;
+//     let currentAmount = this.currentAmount;
+
+//     console.log("Current year:", currentYear);
+//     console.log("Purchase date:", purchaseDate);
+//     console.log("Withdrawn status:", withdrawn);
+//     console.log("Current amount:", currentAmount);
+
+//     if (withdrawn) {
+//         console.log("Share is withdrawn, returning current amount");
+//         return currentAmount;
+//     }
+
+//     console.log("Share year:", this.year);
+
+//     if (this.year !== currentYear) {
+//         console.log("Share year does not match current year, returning current amount");
+//         return currentAmount;
+//     }
+
+//     let lastUpdateDate = this.timeSinceLastUpdate ? new Date(this.timeSinceLastUpdate) : purchaseDate;
+//     console.log("Last update date:", lastUpdateDate);
+
+//     const timeSinceLastUpdate = now - lastUpdateDate;
+//     const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+//     console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
+
+//     if (yearFractionSinceLastUpdate > 0) {
+//         console.log("Time has passed since last update, retrieving share configuration");
+
+//         const shareConfig = await shareConfigSchema.findOne({ year: this.year });
+
+//         if (!shareConfig) {
+//             console.log(`No share configuration found for year ${currentYear}`);
+//             this.lastUpdateDate = now;
+//             await this.save();
+//             console.log("Updated last update date and saved share");
+//             return currentAmount;
+//         }
+
+//         const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+//         console.log("Annual interest rate:", annualIncreaseRate);
+
+//         let calculatedAmount = currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+//         console.log("Calculated amount:", calculatedAmount);
+
+//         let difference = calculatedAmount - currentAmount;
+//         console.log("Difference between calculated and current amount:", difference);
+
+//         currentAmount = calculatedAmount;
+//         this.lastUpdateDate = now;
+//         console.log(`Updated current amount for share with initial amount ${this.initialAmount} to ${currentAmount.toFixed(2)}`);
+//     } else {
+//         console.log(`No time has passed since the last update, current amount remains ${currentAmount.toFixed(2)}`);
+//     }
+
+//     await this.save();
+//     console.log("Saved updated share");
+
+//     console.log("Returning current amount:", Number(currentAmount));
+//     return Number(currentAmount);
+// };
+// shareSchema.methods.calculateCurrentPrice = async function () {
+//     console.log("Calculating current price for share");
+
+//     const now = new Date();
+//     const currentYear = now.getFullYear();
+//     const withdrawn = this.withdrawn;
+
+//     if (withdrawn) {
+//         console.log("Share is withdrawn, returning total amount");
+//         return this.totalAmount;
+//     }
+
+//     console.log("Share year:", this.year);
+
+//     if (this.year !== currentYear) {
+//         console.log("Share year does not match current year, returning total amount");
+//         return this.totalAmount;
+//     }
+
+//     const shareConfig = await shareConfigSchema.findOne({ year: this.year });
+
+//     if (!shareConfig) {
+//         console.log(`No share configuration found for year ${currentYear}`);
+//         await this.save();
+//         console.log("Saved share");
+//         return this.totalAmount;
+//     }
+
+//     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+//     console.log("Annual interest rate:", annualIncreaseRate);
+
+//     for (const purchase of this.purchases) {
+//         let lastUpdateDate = purchase.lastUpdateDate ? new Date(purchase.lastUpdateDate) : purchase.date;
+//         console.log("Last update date:", lastUpdateDate);
+
+//         const timeSinceLastUpdate = now - lastUpdateDate;
+//         const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+//         console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
+
+//         if (yearFractionSinceLastUpdate > 0) {
+//             let calculatedAmount = purchase.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+//             console.log("Calculated amount:", calculatedAmount);
+
+//             purchase.currentAmount = calculatedAmount;
+//             purchase.lastUpdateDate = now;
+//             console.log(`Updated current amount for purchase with initial amount ${purchase.initialAmount} to ${purchase.currentAmount.toFixed(2)}`);
+//         } else {
+//             console.log(`No time has passed since the last update for purchase with initial amount ${purchase.initialAmount}, current amount remains ${purchase.currentAmount.toFixed(2)}`);
+//         }
+//     }
+
+//     this.totalAmount = this.purchases.reduce((total, purchase) => total + purchase.currentAmount, 0);
+//     await this.save();
+//     console.log("Saved updated share");
+
+//     console.log("Returning total amount:", Number(this.totalAmount));
+//     return Number(this.totalAmount);
+// };
 shareSchema.methods.calculateCurrentPrice = async function () {
     console.log("Calculating current price for share");
-
     const now = new Date();
-    const purchaseDate = this.date;
     const currentYear = now.getFullYear();
     const withdrawn = this.withdrawn;
-    let currentAmount = this.currentAmount;
-
-    console.log("Current year:", currentYear);
-    console.log("Purchase date:", purchaseDate);
-    console.log("Withdrawn status:", withdrawn);
-    console.log("Current amount:", currentAmount);
 
     if (withdrawn) {
-        console.log("Share is withdrawn, returning current amount");
-        return currentAmount;
+        console.log("Share is withdrawn, returning total amount");
+        return this.totalAmount;
     }
 
     console.log("Share year:", this.year);
 
     if (this.year !== currentYear) {
-        console.log("Share year does not match current year, returning current amount");
-        return currentAmount;
+        console.log("Share year does not match current year, returning total amount");
+        return this.totalAmount;
     }
 
-    let lastUpdateDate = this.timeSinceLastUpdate ? new Date(this.timeSinceLastUpdate) : purchaseDate;
-    console.log("Last update date:", lastUpdateDate);
+    const shareConfig = await shareConfigSchema.findOne({ year: this.year });
 
-    const timeSinceLastUpdate = now - lastUpdateDate;
-    const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
-    console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
+    if (!shareConfig) {
+        console.log(`No share configuration found for year ${currentYear}`);
+        await this.save();
+        console.log("Saved share");
+        return this.totalAmount;
+    }
 
-    if (yearFractionSinceLastUpdate > 0) {
-        console.log("Time has passed since last update, retrieving share configuration");
+    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+    console.log("Annual interest rate:", annualIncreaseRate);
 
-        const shareConfig = await shareConfigSchema.findOne({ year: this.year });
+    for (const purchase of this.purchases) {
+        let lastUpdateDate = purchase.lastUpdateDate ? new Date(purchase.lastUpdateDate) : purchase.date;
+        console.log("Last update date:", lastUpdateDate);
 
-        if (!shareConfig) {
-            console.log(`No share configuration found for year ${currentYear}`);
-            this.lastUpdateDate = now;
-            await this.save();
-            console.log("Updated last update date and saved share");
-            return currentAmount;
+        // Set the last update date to the first day of the next month after the purchase date
+        lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
+
+        const timeSinceLastUpdate = now - lastUpdateDate;
+        const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+        console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
+
+        if (yearFractionSinceLastUpdate > 0) {
+            let calculatedAmount = purchase.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+            console.log("Calculated amount:", calculatedAmount);
+
+            purchase.currentAmount = calculatedAmount;
+            purchase.lastUpdateDate = now;
+            console.log(`Updated current amount for purchase with initial amount ${purchase.initialAmount} to ${purchase.currentAmount.toFixed(2)}`);
+        } else {
+            console.log(`No time has passed since the last update for purchase with initial amount ${purchase.initialAmount}, current amount remains ${purchase.currentAmount.toFixed(2)}`);
         }
-
-        const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
-        console.log("Annual interest rate:", annualIncreaseRate);
-
-        let calculatedAmount = currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
-        console.log("Calculated amount:", calculatedAmount);
-
-        let difference = calculatedAmount - currentAmount;
-        console.log("Difference between calculated and current amount:", difference);
-
-        currentAmount = calculatedAmount;
-        this.lastUpdateDate = now;
-        console.log(`Updated current amount for share with initial amount ${this.initialAmount} to ${currentAmount.toFixed(2)}`);
-    } else {
-        console.log(`No time has passed since the last update, current amount remains ${currentAmount.toFixed(2)}`);
     }
 
+    this.totalAmount = this.purchases.reduce((total, purchase) => total + purchase.currentAmount, 0);
     await this.save();
     console.log("Saved updated share");
 
-    console.log("Returning current amount:", Number(currentAmount));
-    return Number(currentAmount);
+    console.log("Returning total amount:", Number(this.totalAmount));
+    return Number(this.totalAmount);
 };
 shareSchema.pre('save', async function (next) {
     if (this.isNew) {
