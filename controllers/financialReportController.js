@@ -303,6 +303,7 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         const queryConditions = {
             workplace: workplace
         };
+        console.log(queryConditions);
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({
             path: 'savings',
             populate: {
