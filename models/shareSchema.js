@@ -13,10 +13,10 @@ const adminIdSchema = new mongoose.Schema({
     timestamp: { type: Date }
 });
 const purchaseSchema = new mongoose.Schema({
-    amount: { type: Number, required: true }, // Number of shares
-    initialAmount: { type: Number, required: true }, // Initial value of shares
-    currentAmount: { type: Number, required: true }, // Current value of shares
-    date: { type: Date, required: true },
+    amount: { type: Number }, // Number of shares
+    initialAmount: { type: Number }, // Initial value of shares
+    currentAmount: { type: Number }, // Current value of shares
+    date: { type: Date },
     lastUpdateDate: { type: Date },
 });
 const shareSchema = new mongoose.Schema({
