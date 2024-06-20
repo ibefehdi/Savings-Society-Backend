@@ -10,37 +10,37 @@ exports.getAllShareholderReport = async (req, res) => {
         // Retrieve all shareholders from the database with populated fields
         let shareholders;
         if (year) {
-            shareholders = await Shareholder.find(queryConditions)
-                .populate('share')
-                .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
-                .populate({ path: 'share', match: { year: year } });
-        } else {
-            shareholders = await Shareholder.find(queryConditions)
-                .populate('share')
-                .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+            queryConditions.year = year;
         }
+
+        shareholders = await Shareholder.find(queryConditions)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        console.log(shareholders);
 
         // Prepare an array to store the financial reporting for each shareholder
         const financialReports = shareholders.map(shareholder => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
-            // Calculate the total share increase and current amount
-            let totalShareIncrease = 0;
-            let totalShareCurrentAmount = 0;
-            const shareDetails = share.map(entry => {
-                const { initialAmount, currentAmount, year } = entry;
-                const shareIncrease = currentAmount - initialAmount;
-                totalShareIncrease += shareIncrease;
-                totalShareCurrentAmount += currentAmount;
-                return { initialAmount, currentAmount, year };
-            });
+            // Calculate the share increase and current amount
+            let shareIncrease = 0;
+            let shareCurrentAmount = 0;
+            if (share && share.purchases) {
+                share.purchases.forEach(purchase => {
+                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
+                });
+                shareCurrentAmount = share.totalAmount;
+            }
 
-            // Calculate the savings increase
+            // Calculate the savings increase and current amount
             let savingsIncrease = 0;
             let savingsCurrentAmount = 0;
-            if (savings) {
-                savingsIncrease = savings.currentAmount - savings.initialAmount;
-                savingsCurrentAmount = savings.currentAmount;
+            if (savings && savings.deposits) {
+                savings.deposits.forEach(deposit => {
+                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
+                });
+                savingsCurrentAmount = savings.totalAmount;
             }
 
             // Calculate the amanat amount
@@ -50,7 +50,7 @@ exports.getAllShareholderReport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = totalShareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
 
             // Prepare the financial reporting object for the shareholder
             return {
@@ -58,18 +58,18 @@ exports.getAllShareholderReport = async (req, res) => {
                 membersCode,
                 civilId,
                 savingsDetails: savings || {},
-                shareDetails,
+                shareDetails: share || {},
                 fullName: `${fName} ${lName}`,
-                totalShareIncrease,
-                totalShareCurrentAmount,
+                shareIncrease,
+                shareCurrentAmount,
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
                 total,
             };
         });
-        const count = shareholders.length;
 
+        const count = shareholders.length;
 
         res.json({
             data: financialReports,
@@ -81,7 +81,6 @@ exports.getAllShareholderReport = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 }
-
 exports.getAllShareholderByYear = async (req, res) => {
     try {
         // Pagination setup
