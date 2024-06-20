@@ -84,7 +84,7 @@ app.use(
         },
     })
 );
-const schedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 L * *';
+const schedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 28-31 * *';
 console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
