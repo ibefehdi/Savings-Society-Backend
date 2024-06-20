@@ -405,12 +405,18 @@ exports.createShareholderBackup = async (req, res) => {
         const shareholder = await Shareholder.create(sanitizedShareholder);
 
         // Handle transactions
-        const depositAmount = req.body.DepositAmount;
-        const depositDate = req.body.DepositDate;
-        const withdrawAmount = req.body.WithdrawAmount;
-        const withdrawDate = req.body.WithdrawalDate;
-
-        if (req.body.Deposit && depositAmount && depositDate) {
+        const depositAmount = req.body.depositAmount;
+        const depositDate = req.body.depositDate;
+        const withdrawAmount = req.body.withdrawAmount;
+        const withdrawDate = req.body.withdrawalDate;
+        const deposit = req.body.Deposit;
+        const withdraw = req.body.Withdraw;
+        console.log(typeof (deposit))
+        console.log("Withdraw: ", withdraw)
+        console.log("Deposit: ", deposit)
+        console.log("Deposit Date: ", depositDate)
+        console.log("Withdraw Date: ", withdrawDate)
+        if (deposit == "TRUE" || depositAmount || depositDate) {
             const sanitizedDeposit = {
                 initialAmount: depositAmount,
                 currentAmount: depositAmount,
@@ -434,7 +440,7 @@ exports.createShareholderBackup = async (req, res) => {
 
         }
 
-        if (req.body.Withdraw && withdrawAmount && withdrawDate) {
+        if (withdraw == "TRUE" || withdrawAmount || withdrawDate) {
             if (withdrawAmount > savings.totalAmount) {
                 return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
             }
