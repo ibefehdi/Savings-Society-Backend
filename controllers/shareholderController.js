@@ -313,11 +313,18 @@ exports.createShareholderBackup = async (req, res) => {
             area: sanitizeInput(req.body.Area),
         };
         const address = await Address.create(sanitizedAddress);
-
-        const workplaceDescription = req.body.WorkPlace;
+        const workplaceId = sanitizeInput(req.body.workplaceId);
+        // const workplaceDescription = req.body.WorkPlace;
         const approvalDate = req.body.ApprovalDate;
         const withdrawn = req.body.Withdrawn;
+        let workplaceDescription = '';
 
+        if (workplaceId) {
+            const workplace = await Workplace.findOne({ id: workplaceId.toString() });
+            if (workplace) {
+                workplaceDescription = workplace.description;
+            }
+        }
         const sanitizedPurchase = {
             amount: req.body.shareAmount,
             initialAmount: req.body.shareInitialPrice,
@@ -384,6 +391,7 @@ exports.createShareholderBackup = async (req, res) => {
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
+            workplace: workplaceDescription,
             withdrawn: false,
             status: 0,
             membershipStatus: 0,
