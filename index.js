@@ -32,6 +32,8 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerDefinition = require('./utils/swaggerDef');
 const Contract = require('./models/contractSchema')
 const Voucher = require('./models/voucherSchema')
+const schedule = require('node-schedule');
+
 require('dotenv').config();
 const options = {
     swaggerDefinition,
@@ -84,7 +86,7 @@ app.use(
         },
     })
 );
-const schedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 28-31 * *';
+const cronSchedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 L * *';
 console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
@@ -131,7 +133,7 @@ passport.deserializeUser(async function (id, done) {
         done(error);
     }
 });
-cron.schedule(schedule, async () => {
+schedule.scheduleJob(cronSchedule, async () => {
     const shares = await Share.find();
     for (let share of shares) {
         try {
@@ -205,7 +207,7 @@ async function createVouchers() {
         console.error('Error creating vouchers:', error);
     }
 }
-cron.schedule('* * * * *', createVouchers);
+schedule.scheduleJob('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);
 
