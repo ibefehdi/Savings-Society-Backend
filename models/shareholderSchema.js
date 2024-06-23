@@ -42,10 +42,10 @@ const shareholderSchema = new mongoose.Schema({
     mobileNumber: { type: String },
     address: { type: mongoose.Schema.Types.ObjectId, ref: 'Address' },
     serial: { type: Number },
-    share: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Share' }],
+    share: { type: mongoose.Schema.Types.ObjectId, ref: 'Share' },
     savings: { type: mongoose.Schema.Types.ObjectId, ref: 'Savings' },
     lastEditedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    amanat: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' }],
+    // amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
     gender: { type: String, enum: ['male', 'female'], required: true }
 })
 shareholderSchema.pre('save', async function (next) {

@@ -12,7 +12,20 @@ exports.createBuilding = async (req, res) => {
         };
         const address = await Address.create(sanitizedAddress);
         const { name, floors, type } = req.body;
-        const building = new Building({ name, floors, address, type });
+
+        // Find the last building in the database
+        const lastBuilding = await Building.findOne().sort({ no: -1 });
+
+        // Generate the new building's no based on the last building's no
+        const newNo = lastBuilding ? parseInt(lastBuilding.no) + 1 : 1;
+
+        const building = new Building({
+            no: newNo.toString(),
+            name,
+            floors,
+            address,
+            type,
+        });
         await building.save();
         res.status(201).json(building);
     } catch (error) {
@@ -22,13 +35,14 @@ exports.createBuilding = async (req, res) => {
 
 exports.getAllBuildings = async (req, res) => {
     try {
-        const buildings = await Building.find({ type: 'Building' }).populate('address').lean();
+        const buildings = await Building.find({ type: { $in: ['Building', 'Bakala'] } }).populate('address').lean();
         const count = buildings.length;
         res.json({ data: buildings, count: count, metadata: { total: count } });
     } catch (error) {
         res.status(500).json({ error: 'Failed to retrieve buildings' });
     }
 };
+
 exports.getAllHalls = async (req, res) => {
     try {
         const halls = await Building.find({ type: "Hall" }).populate('address').lean();
@@ -112,3 +126,22 @@ exports.deleteBuilding = async (req, res) => {
         res.status(500).json({ error: 'Failed to delete building' });
     }
 };
+
+exports.createBuildingBackup = async (req, res) => {
+    try {
+        const sanitizedAddress = {
+            block: req.body.block,
+            street: req.body.street,
+            house: req.body.house,
+            avenue: req.body.avenue,
+            city: req.body.city,
+        };
+        const address = await Address.create(sanitizedAddress);
+        const { no, name, floors, type } = req.body;
+        const building = new Building({ no, name, floors, address, type });
+        await building.save();
+        res.status(201).json(building);
+    } catch (err) {
+        res.status(400).send({ status: 1, message: err.message })
+    }
+}

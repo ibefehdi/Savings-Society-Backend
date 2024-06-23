@@ -9,16 +9,20 @@ const adminIdSchema = new mongoose.Schema({
 
 
 const savingsSchema = new mongoose.Schema({
-    initialAmount: { type: Number },
-    currentAmount: { type: Number },
-    date: { type: Date },
-    lastUpdateDate: { type: Date },
+    deposits: [{
+        initialAmount: { type: Number, required: true },
+        currentAmount: { type: Number, required: true },
+        date: { type: Date, required: true },
+        lastUpdateDate: { type: Date },
+    }],
+    totalAmount: { type: Number, default: 0 },
     withdrawn: { type: Boolean },
     maxReached: { type: Boolean },
     amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
     year: { type: String },
     adminId: [adminIdSchema],
 }, { timestamps: true });
+
 
 // savingsSchema.methods.calculateCurrentPrice = async function () {
 //     const now = new Date();
@@ -101,55 +105,156 @@ const savingsSchema = new mongoose.Schema({
 //     console.log(`Current amount for savings with initial amount ${this.initialAmount} is ${currentAmount.toFixed(2)}`);
 //     return currentAmount;
 // };
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
+//     let lastUpdateDate = this.lastUpdateDate ? new Date(this.lastUpdateDate) : this.date;
+//     const timeSinceLastUpdate = now - lastUpdateDate;
+//     const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+
+//     if (this.withdrawn) {
+//         return this.currentAmount;
+//     }
+//     console.log(now.getFullYear())
+//     if (yearFractionSinceLastUpdate > 0) {
+//         const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+//         console.log(shareConfig);
+//         if (!shareConfig) {
+//             console.log(`No savings configuration found for this year.`);
+//             this.lastUpdateDate = now;
+//             await this.save();
+//             return this.currentAmount;
+//         }
+
+//         const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+//         let calculatedAmount = this.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+
+//         if (calculatedAmount > 1000) {
+//             const excessAmount = calculatedAmount - 1000;
+//             calculatedAmount = 1000; // Reset currentAmount to 1000
+
+//             let amanat;
+//             if (this.amanat) {
+//                 amanat = await Amanat.findById(this.amanat);
+//             } else {
+//                 amanat = new Amanat({ amount: 0, date: new Date() });
+//             }
+
+//             amanat.amount += excessAmount;
+//             await amanat.save();
+
+//             // Update the reference
+//             this.amanat = amanat._id;
+//         }
+
+//         this.currentAmount = calculatedAmount;
+//         this.lastUpdateDate = now;
+//         await this.save();
+//     }
+
+//     return this.currentAmount;
+// };
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
+
+//     if (this.withdrawn) {
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
+
+//     const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+//     if (!shareConfig) {
+//         console.log(`No savings configuration found for this year.`);
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
+
+//     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+
+//     for (const deposit of this.deposits) {
+//         let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
+//         const timeSinceLastUpdate = now - lastUpdateDate;
+//         const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+
+//         if (yearFractionSinceLastUpdate > 0) {
+//             let calculatedAmount = deposit.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+
+//             if (calculatedAmount > 1000) {
+//                 const excessAmount = calculatedAmount - 1000;
+//                 calculatedAmount = 1000;
+
+//                 let amanat;
+//                 if (this.amanat) {
+//                     amanat = await Amanat.findById(this.amanat);
+//                 } else {
+//                     amanat = new Amanat({ amount: 0, date: new Date() });
+//                 }
+
+//                 amanat.amount += excessAmount;
+//                 await amanat.save();
+
+//                 this.amanat = amanat._id;
+//             }
+
+//             deposit.currentAmount = calculatedAmount;
+//             deposit.lastUpdateDate = now;
+//         }
+//     }
+//     this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+
+//     await this.save();
+//     return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+// };
 savingsSchema.methods.calculateCurrentPrice = async function () {
     const now = new Date();
-    let lastUpdateDate = this.lastUpdateDate ? new Date(this.lastUpdateDate) : this.date;
-    const timeSinceLastUpdate = now - lastUpdateDate;
-    const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
 
     if (this.withdrawn) {
-        return this.currentAmount;
+        return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
     }
-    console.log(now.getFullYear())
-    if (yearFractionSinceLastUpdate > 0) {
-        const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
-        console.log(shareConfig);
-        if (!shareConfig) {
-            console.log(`No savings configuration found for this year.`);
-            this.lastUpdateDate = now;
-            await this.save();
-            return this.currentAmount;
-        }
 
-        const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
-        let calculatedAmount = this.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+    const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+    if (!shareConfig) {
+        console.log(`No savings configuration found for this year.`);
+        return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+    }
 
-        if (calculatedAmount > 1000) {
-            const excessAmount = calculatedAmount - 1000;
-            calculatedAmount = 1000; // Reset currentAmount to 1000
+    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
 
-            let amanat;
-            if (this.amanat) {
-                amanat = await Amanat.findById(this.amanat);
-            } else {
-                amanat = new Amanat({ amount: 0, date: new Date() });
+    for (const deposit of this.deposits) {
+        let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
+
+        // Set the last update date to the first day of the next month after the deposit date
+        lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
+
+        const timeSinceLastUpdate = now - lastUpdateDate;
+        const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+
+        if (yearFractionSinceLastUpdate > 0) {
+            let calculatedAmount = deposit.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+
+            if (calculatedAmount > 1000) {
+                const excessAmount = calculatedAmount - 1000;
+                calculatedAmount = 1000;
+
+                let amanat;
+                if (this.amanat) {
+                    amanat = await Amanat.findById(this.amanat);
+                } else {
+                    amanat = new Amanat({ amount: 0, date: new Date() });
+                }
+
+                amanat.amount += excessAmount;
+                await amanat.save();
+
+                this.amanat = amanat._id;
             }
 
-            amanat.amount += excessAmount;
-            await amanat.save();
-
-            // Update the reference
-            this.amanat = amanat._id;
+            deposit.currentAmount = calculatedAmount;
+            deposit.lastUpdateDate = now;
         }
-
-        this.currentAmount = calculatedAmount;
-        this.lastUpdateDate = now;
-        await this.save();
     }
 
-    return this.currentAmount;
+    this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+
+    await this.save();
+    return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
 };
-
-
 
 module.exports = mongoose.model('Savings', savingsSchema);
