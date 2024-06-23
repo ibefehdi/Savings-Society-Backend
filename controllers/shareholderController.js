@@ -86,7 +86,42 @@ exports.getAllShareholders = async (req, res) => {
     }
 };
 
+exports.getShareholdersWithAmanat = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
 
+        const shareholders = await Shareholder.find()
+            .populate({
+                path: 'savings',
+                match: { amanat: { $exists: true, $ne: null } },
+                populate: {
+                    path: 'amanat',
+                    model: 'Amanat'
+                }
+            })
+            .skip(skip)
+            .limit(resultsPerPage);
+        // Filter out shareholders without amanat in their savings
+        const shareholdersWithAmanat = shareholders.filter(shareholder =>
+            shareholder.savings && shareholder.savings.amanat && shareholder.savings.amanat.amount !== 0
+        );
+        console.log(shareholdersWithAmanat)
+
+        const total = await Shareholder.countDocuments({
+            'savings.amanat': { $exists: true, $ne: null }
+        });
+
+        res.status(200).send({
+            data: shareholdersWithAmanat,
+            count: shareholdersWithAmanat.length,
+            metadata: { total: total }
+        });
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
 exports.getAllShareholdersFormatted = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -1208,7 +1243,13 @@ exports.getShareholderFinancials = async (req, res) => {
         // }
 
         const shareholder = await Shareholder.findOne({ _id: id })
-            .populate('savings')
+            .populate({
+                path: 'savings',
+                populate: {
+                    path: 'amanat',
+                    model: 'Amanat'
+                }
+            })
             .populate('share');
 
         console.log(shareholder)
@@ -1226,13 +1267,13 @@ exports.getShareholderFinancials = async (req, res) => {
         const share = shareholder.share ? shareholder.share.totalShareAmount : null;
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
 
-        console.log(share)
+        console.log(shareholder.savings.amanat)
         // Prepare the response.
         const response = {
             savings: savings,
             sharesTotalAmount: share || null,
             shareValue: shareValue || null,
-            amanat: savings && savings.amanat ? savings.amanat : null,
+            amanat: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : null,
         };
 
         // Return the data to the client.
