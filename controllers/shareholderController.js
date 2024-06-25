@@ -342,10 +342,10 @@ exports.makeUserInactive = async (req, res) => {
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
-            block: sanitizeInput(req.body.Block),
-            street: sanitizeInput(req.body.Street),
-            house: sanitizeInput(req.body.BuildingNo),
-            area: sanitizeInput(req.body.Area),
+            block: sanitizeInput(req.body.block),
+            street: sanitizeInput(req.body.street),
+            house: sanitizeInput(req.body.house),
+            area: sanitizeInput(req.body.area),
         };
         const address = await Address.create(sanitizedAddress);
         const workplaceId = sanitizeInput(req.body.workplaceId);
@@ -377,17 +377,18 @@ exports.createShareholderBackup = async (req, res) => {
         };
 
         const share = await Share.create(sanitizedShare);
-
+        console.log(req.body.Amanat)
+        const amanat = req.body.Amanat;
         let newAmanat;
-        if (req.body.Amanat) {
-            const amanatDocument = {
-                amount: req.body.Amanat,
-                withdrawn: false,
-                date: new Date(),
-                year: new Date().getFullYear(),
-            };
-            newAmanat = await Amanat.create(amanatDocument);
-        }
+
+        const amanatDocument = {
+            amount: amanat || 0,
+            withdrawn: false,
+            date: new Date(),
+            year: new Date().getFullYear(),
+        };
+        newAmanat = await Amanat.create(amanatDocument);
+
 
         const sanitizedDeposit = {
             initialAmount: req.body.savingsInitialPrice,
