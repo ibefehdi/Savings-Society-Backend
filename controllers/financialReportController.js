@@ -4,13 +4,31 @@ const xss = require('xss');
 
 exports.getAllShareholderReport = async (req, res) => {
     try {
-        const { year } = req.query;
+        const { year, membersCode, fName, lName, civilId, status, gender } = req.query;
         const queryConditions = {};
 
         // Retrieve all shareholders from the database with populated fields
         let shareholders;
         if (year) {
             queryConditions.year = year;
+        }
+        if (membersCode) {
+            queryConditions.membersCode = membersCode;
+        }
+        if (fName) {
+            queryConditions.fName = fName;
+        }
+        if (lName) {
+            queryConditions.lName = lName;
+        }
+        if (civilId) {
+            queryConditions.civilId = civilId;
+        }
+        if (status) {
+            queryConditions.status = status;
+        }
+        if (gender) {
+            queryConditions.gender = gender;
         }
 
         shareholders = await Shareholder.find(queryConditions)
