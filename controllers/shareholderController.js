@@ -30,6 +30,7 @@ exports.getAllShareholders = async (req, res) => {
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
         const status = req.query.status || 0;
+        const area = req.query.area || '';
         const currentYear = new Date().getFullYear();
         console.log(workplace)
         let queryConditions = {
@@ -59,10 +60,12 @@ exports.getAllShareholders = async (req, res) => {
         if (workplace) {
             queryConditions.workplace = workplace || '';
         }
+        if (area) {
+            queryConditions.Area = area;
+        }
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
                 path: 'savings',
-
                 populate: {
                     path: 'amanat',
                     model: 'Amanat'
@@ -104,16 +107,12 @@ exports.getShareholdersWithAmanat = async (req, res) => {
             })
             .skip(skip)
             .limit(resultsPerPage);
-        // Filter out shareholders without amanat in their savings
         const shareholdersWithAmanat = shareholders.filter(shareholder =>
             shareholder.savings && shareholder.savings.amanat && shareholder.savings.amanat.amount !== 0
         );
-        console.log(shareholdersWithAmanat)
-
         const total = await Shareholder.countDocuments({
             'savings.amanat': { $exists: true, $ne: null }
         });
-        console.log("Total: " + total)
         res.status(200).send({
             data: shareholdersWithAmanat,
             count: count,
@@ -795,6 +794,7 @@ exports.addSavingsToShareholder = async (req, res) => {
         const initialAmount = parseFloat(req.body.newAmount);
         const adminId = req.body.adminId;
         const year = req.body.year;
+        const date = new Date(req.body.date);
 
         // Check if the parsed values are valid
         if (isNaN(initialAmount) || !adminId || isNaN(year)) {
@@ -830,15 +830,15 @@ exports.addSavingsToShareholder = async (req, res) => {
                     {
                         initialAmount,
                         currentAmount: initialAmount,
-                        date: new Date(),
-                        lastUpdateDate: new Date(),
+                        date: date,
+                        lastUpdateDate: date,
                     },
                 ],
                 adminId: [
                     {
                         adminId,
                         amountBeforeChange: 0,
-                        timestamp: new Date(),
+                        timestamp: date,
                     },
                 ],
                 withdrawn: false,
@@ -865,13 +865,13 @@ exports.addSavingsToShareholder = async (req, res) => {
                         deposits: {
                             initialAmount,
                             currentAmount: initialAmount,
-                            date: new Date(),
-                            lastUpdateDate: new Date(),
+                            date: date,
+                            lastUpdateDate: date,
                         },
                         adminId: {
                             adminId,
                             amountBeforeChange: oldAmount,
-                            timestamp: new Date(),
+                            timestamp: date,
                         },
                     },
                 },
@@ -893,7 +893,7 @@ exports.addSavingsToShareholder = async (req, res) => {
             newAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0),
             admin: adminId,
             type: "Savings",
-            depositDate: new Date(),
+            depositDate: date,
         };
         await DepositHistory.create(depositSavings);
 
@@ -914,6 +914,7 @@ exports.addSharesToShareholder = async (req, res) => {
         const newShareAmount = Number(req.body.newShareAmount);
         const adminId = req.body.adminId;
         const year = req.body.year || new Date().getFullYear();
+        const date = new Date(req.body.date);
 
         const shareholder = await Shareholder.findById(id).populate('share');
 
@@ -955,8 +956,8 @@ exports.addSharesToShareholder = async (req, res) => {
             amount: newShareAmount,
             initialAmount: purchaseAmount,
             currentAmount: purchaseAmount,
-            date: new Date(),
-            lastUpdateDate: new Date(),
+            date: date,
+            lastUpdateDate: date,
         });
 
         share.totalAmount += purchaseAmount;
@@ -965,7 +966,7 @@ exports.addSharesToShareholder = async (req, res) => {
             adminId: adminId,
             amountBeforeChange: oldTotalAmount,
             shareAmountBeforeChange: oldTotalShareAmount,
-            timestamp: new Date(),
+            timestamp: date,
         });
 
         await share.save();
@@ -979,7 +980,7 @@ exports.addSharesToShareholder = async (req, res) => {
             newShareAmount: share.totalShareAmount,
             admin: adminId,
             type: "Shares",
-            depositDate: new Date(),
+            depositDate: date,
             year: year,
         };
 
@@ -1148,6 +1149,8 @@ exports.withdrawAmanat = async (req, res) => {
         const id = req.params.id;
         const userId = req.body.userId;
         const amountToWithdraw = req.body.amountToWithdraw;
+        const date = new Date(req.body.date);
+
         const shareholder = await Shareholder.findOne({ _id: id }).populate({
             path: 'savings',
             populate: {
@@ -1213,7 +1216,7 @@ exports.withdrawAmanat = async (req, res) => {
             newAmount: updatedSavings.amount,
             admin: userId,
             type: "Amanat",
-            withdrawalDate: Date.now()
+            withdrawalDate: date
         };
 
         const updatedDepositHistory = await WithdrawalHistory.create([withdrawAmanat]);
@@ -1267,6 +1270,8 @@ exports.withdrawSavings = async (req, res) => {
         const adminId = req.body.adminId;
         console.log("this is the userId", adminId);
         const year = new Date().getFullYear();
+        const date = new Date(req.body.date);
+
         const amountToWithdraw = req.body.amountToWithdraw;
         console.log(id)
         const shareholder = await Shareholder.findById(id).populate('savings');
@@ -1349,7 +1354,7 @@ exports.withdrawSavings = async (req, res) => {
             newAmount: savings.totalAmount,
             admin: adminId,
             type: "Savings",
-            withdrawalDate: Date.now()
+            withdrawalDate: date
         };
 
         const updatedupdatedHistory = await WithdrawalHistory.create([WithdrawSavings]);
@@ -1430,6 +1435,8 @@ exports.withdrawShares = async (req, res) => {
         const userId = req.body.userId;
         const amountOfShares = req.body.amountOfShares;
         const amountToWithdraw = req.body.amountToWithdraw;
+        const date = new Date(req.body.date);
+
         console.log(req.body);
 
         const shareholder = await Shareholder.findById(id).populate('share');
@@ -1509,7 +1516,7 @@ exports.withdrawShares = async (req, res) => {
             newShareAmount: shareholder.share.totalShareAmount,
             admin: userId,
             type: "Shares",
-            withdrawalDate: Date.now(),
+            withdrawalDate: date,
         };
 
         const updatedWithdrawalHistory = await WithdrawalHistory.create([WithdrawShares]);
