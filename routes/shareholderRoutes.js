@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { joiShareholderSchema } = require("../validationModels/joiModels")
 const validateRequiredFields = require('../middleware/middleware');
-const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat } = require('../controllers/shareholderController');
+const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport } = require('../controllers/shareholderController');
 
 /**
  * @openapi
@@ -38,4 +38,6 @@ router.get("/getShareholderAmanat/:id", getUserAmanat)
 router.get("/shareholderactivecount/", getShareholderActiveCount)
 router.get("/shareholdercsv/", getAllShareholdersFormatted)
 router.get("/shareholderwithamanat/", getShareholdersWithAmanat)
+router.get('/shareholder-amanat-report', getShareholderAmanatReportExport);
+router.get('/transfer-log-report', getTransferLogReportExport);
 module.exports = router;

@@ -12,6 +12,7 @@ const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const XLSX = require('xlsx');
 const xss = require('xss');
+const excel = require('exceljs');
 const mongoose = require('mongoose');
 
 function sanitizeInput(input) {
@@ -1428,7 +1429,70 @@ exports.getShareholderFinancials = async (req, res) => {
     }
 };
 
+exports.getShareholderAmanatReportExport = async (req, res) => {
+    try {
+        const { status, membershipStatus, format } = req.query;
+        let queryConditions = {};
 
+        // Construct query conditions
+        if (status) queryConditions.status = parseInt(status);
+        if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
+
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate({
+                path: 'savings',
+                populate: { path: 'amanat', model: 'Amanat' }
+            });
+
+        // Prepare an array to store the shareholder report data
+        const reportData = shareholders.map(shareholder => {
+            return {
+                membersCode: shareholder.membersCode,
+                fullName: `${shareholder.fName} ${shareholder.lName}`,
+                civilId: shareholder.civilId || 'N/A',
+                mobileNumber: shareholder.mobileNumber || 'N/A',
+                amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
+            };
+        });
+
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
+
+        // Add headers
+        worksheet.addRow([
+            'Members Code', 'Full Name', 'Civil ID', 'Mobile Number', 'Amanat'
+        ]);
+
+        // Add data rows
+        reportData.forEach(record => {
+            worksheet.addRow([
+                record.membersCode,
+                record.fullName,
+                record.civilId,
+                record.mobileNumber,
+                record.amanatAmount
+            ]);
+        });
+
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
+            await workbook.xlsx.write(res);
+        }
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.withdrawShares = async (req, res) => {
     try {
         const id = req.params.id;
@@ -1528,5 +1592,88 @@ exports.withdrawShares = async (req, res) => {
         });
     } catch (err) {
         res.status(400).send({ status: 4, message: err.message });
+    }
+};
+
+exports.getTransferLogReportExport = async (req, res) => {
+    try {
+        const { startDate, endDate, format } = req.query;
+        let queryConditions = {};
+
+        // Construct query conditions for date range
+        if (startDate && endDate) {
+            queryConditions.date = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+
+        // Retrieve all transfer logs from the database with populated fields
+        const transferLogs = await TransferLog.find(queryConditions)
+            .populate('shareholder')
+            .populate('fromSavings')
+            .populate('toAmanat')
+            .populate('admin');
+
+        // Prepare an array to store the transfer log report data
+        const reportData = transferLogs.map(log => {
+            const savingsTotal = log.fromSavings ? log.fromSavings.totalAmount : 0;
+            const amanatTotal = log.toAmanat ? log.toAmanat.amount : 0;
+
+            return {
+                membersCode: log.shareholder ? log.shareholder.membersCode : 'N/A',
+                fullName: log.shareholder ? `${log.shareholder.fName} ${log.shareholder.lName}` : 'N/A',
+                transferAmount: log.amount,
+                transferDate: log.date,
+                savingsTotalBeforeTransfer: savingsTotal + log.amount,
+                savingsTotalAfterTransfer: savingsTotal,
+                amanatTotalBeforeTransfer: amanatTotal - log.amount,
+                amanatTotalAfterTransfer: amanatTotal,
+                adminName: log.admin ? `${log.admin.fName} ${log.admin.lName}` : 'N/A'
+            };
+        });
+
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Transfer Log Report');
+
+        // Add headers
+        worksheet.addRow([
+            'Members Code', 'Full Name', 'Transfer Amount', 'Transfer Date',
+            'Savings Total Before Transfer', 'Savings Total After Transfer',
+            'Amanat Total Before Transfer', 'Amanat Total After Transfer',
+            'Admin Name'
+        ]);
+
+        // Add data rows
+        reportData.forEach(record => {
+            worksheet.addRow([
+                record.membersCode,
+                record.fullName,
+                record.transferAmount,
+                record.transferDate,
+                record.savingsTotalBeforeTransfer,
+                record.savingsTotalAfterTransfer,
+                record.amanatTotalBeforeTransfer,
+                record.amanatTotalAfterTransfer,
+                record.adminName
+            ]);
+        });
+
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=transfer_log_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=transfer_log_report.xlsx');
+            await workbook.xlsx.write(res);
+        }
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
