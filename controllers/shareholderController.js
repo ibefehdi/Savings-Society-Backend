@@ -1046,6 +1046,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
         const userId = req.body.userId;
         const amountToMove = Number(req.body.amountToMove);
         const year = new Date().getFullYear().toString();
+        const date = new Date(req.body.date)
         console.log(amountToMove);
         const shareholder = await Shareholder.findById(id).populate({
             path: 'savings',
@@ -1103,7 +1104,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
             amanat = new Amanat({
                 amount: amountToMove,
                 withdrawn: false,
-                date: Date.now(),
+                date: date,
                 year: year
             });
         } else {
@@ -1123,7 +1124,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
             fromSavings: savings._id,
             toAmanat: amanat._id,
             amount: amountToMove,
-            date: Date.now(),
+            date: date,
             admin: userId
         });
         await transferLog.save();
