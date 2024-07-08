@@ -3,6 +3,9 @@ const Flat = require('../models/flatSchema');
 const Tenant = require('../models/tenantSchema');
 const Building = require('../models/buildingSchema');
 const Contract = require('../models/contractSchema');
+const path = require('path');
+const fs = require('fs');
+
 const ContractHistory = require('../models/contractHistorySchema')
 exports.createFlat = async (req, res) => {
     try {
@@ -12,7 +15,6 @@ exports.createFlat = async (req, res) => {
             tenantName,
             tenantContactNumber,
             tenantCivilId,
-            tenantType,
             startDate,
             endDate,
             rentAmount,
@@ -30,13 +32,29 @@ exports.createFlat = async (req, res) => {
         let tenant = null;
         let contract = null;
 
-        if (tenantName && tenantContactNumber && tenantType) {
+        if (tenantName && tenantContactNumber) {
+            let civilIdDocument = undefined;
+            if (req.file) {
+                const fileExtension = path.extname(req.file.originalname);
+                const newFileName = `${tenantCivilId}${fileExtension}`;
+                const newPath = path.join(path.dirname(req.file.path), newFileName);
+
+                fs.renameSync(req.file.path, newPath);
+
+                const fileUrl = `${req.protocol}://${req.get('host')}/uploads/civilIDs/${newFileName}`;
+
+                civilIdDocument = {
+                    path: fileUrl,
+                    fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+                };
+            }
+
             tenant = await Tenant.create({
                 name: tenantName,
                 contactNumber: tenantContactNumber,
                 civilId: tenantCivilId,
-                type: tenantType,
                 flatId: flat._id,
+                civilIdDocument: civilIdDocument
             });
 
             if (tenant) {
@@ -44,7 +62,6 @@ exports.createFlat = async (req, res) => {
                 flat.tenant = tenant._id;
                 await flat.save();
 
-                // Create a contract if tenant and contract details are provided
                 if (startDate && endDate && rentAmount && collectionDay) {
                     contract = await Contract.create({
                         flatId: flat._id,
@@ -80,10 +97,9 @@ exports.createFlat = async (req, res) => {
 };
 exports.assignTenantToFlat = async (req, res) => {
     try {
-        const flatId = req.params.id
-        const { tenantName, tenantContactNumber, tenantType, startDate, endDate, rentAmount, collectionDay } = req.body;
+        const flatId = req.params.id;
+        const { tenantName, tenantContactNumber, tenantCivilId, startDate, endDate, rentAmount, collectionDay } = req.body;
 
-        // Find the flat by its ID
         const flat = await Flat.findById(flatId);
 
         if (!flat) {
@@ -94,12 +110,28 @@ exports.assignTenantToFlat = async (req, res) => {
             return res.status(400).json({ error: 'Flat is not vacant' });
         }
 
-        // Create a new tenant
+        let civilIdDocument = undefined;
+        if (req.file) {
+            const fileExtension = path.extname(req.file.originalname);
+            const newFileName = `${tenantCivilId}${fileExtension}`;
+            const newPath = path.join(path.dirname(req.file.path), newFileName);
+
+            fs.renameSync(req.file.path, newPath);
+
+            const fileUrl = `${req.protocol}://${req.get('host')}/uploads/civilIDs/${newFileName}`;
+
+            civilIdDocument = {
+                path: fileUrl,
+                fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+            };
+        }
+
         const tenant = await Tenant.create({
             name: tenantName,
             contactNumber: tenantContactNumber,
-            type: tenantType,
+            civilId: tenantCivilId,
             flatId: flatId,
+            civilIdDocument: civilIdDocument
         });
 
         if (tenant) {
@@ -107,7 +139,6 @@ exports.assignTenantToFlat = async (req, res) => {
             flat.tenant = tenant._id;
             await flat.save();
 
-            // Create a contract if contract details are provided
             let contract = null;
             if (startDate && endDate && rentAmount && collectionDay) {
                 contract = await Contract.create({
@@ -326,7 +357,7 @@ exports.removeTenant = async (req, res) => {
 };
 exports.replaceTenant = async (req, res) => {
     try {
-        const { tenantName, tenantContactNumber, tenantType, startDate, endDate, rentAmount, collectionDay } = req.body;
+        const { tenantName, tenantContactNumber, startDate, endDate, rentAmount, collectionDay } = req.body;
         const flatId = req.params.id;
 
         const flat = await Flat.findById(flatId);
@@ -348,7 +379,7 @@ exports.replaceTenant = async (req, res) => {
         const newTenant = await Tenant.create({
             name: tenantName,
             contactNumber: tenantContactNumber,
-            type: tenantType,
+            // type: tenantType,
             flatId: flat._id,
         });
 

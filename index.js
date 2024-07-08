@@ -21,6 +21,7 @@ const bookingRoutes = require("./routes/bookingRoutes")
 const voucherRoutes = require("./routes/voucherRoutes");
 const flatRoutes = require("./routes/flatRoutes");
 const transactionRoutes = require("./routes/transactionRoutes")
+const tenantRoutes = require("./routes/tenantRoutes")
 const contractRoutes = require("./routes/contractRoutes");
 const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
@@ -33,6 +34,7 @@ const swaggerDefinition = require('./utils/swaggerDef');
 const Contract = require('./models/contractSchema')
 const Voucher = require('./models/voucherSchema')
 const schedule = require('node-schedule');
+const path = require('path');
 
 require('dotenv').config();
 const options = {
@@ -90,16 +92,7 @@ const cronSchedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 L 
 console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
-app.use((req, res, next) => {
-    const clientVersion = req.headers['app-version'];
-    const serverVersion = process.env.APP_VERSION || '1.0';
 
-    if (clientVersion !== serverVersion) {
-        return res.status(409).json({ error: 'App version mismatch. Please refresh or reload the application.' });
-    }
-
-    next();
-});
 mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
     .catch((err) => console.log("Error connecting to MongoDB", err));
 
@@ -210,6 +203,9 @@ async function createVouchers() {
 schedule.scheduleJob('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
 
 
 app.use('/api/v1/', userRoutes);
@@ -227,5 +223,6 @@ app.use('/api/v1/', transactionRoutes)
 app.use('/api/v1/', voucherRoutes)
 app.use('/api/v1/', bookingRoutes)
 app.use('/api/v1/', contractRoutes)
+app.use('/api/v1/', tenantRoutes)
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
