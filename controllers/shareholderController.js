@@ -146,27 +146,64 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         if (gender) queryConditions.gender = gender;
 
         const shareholders = await Shareholder.find(queryConditions)
-            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
-            .populate('share')
-            .populate('address');
 
-        const csvStringifier = stringify({ header: true });
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address share savings membersCode')
+            .populate('address')
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'Serial',
+                'Full Name',
+                'Date of Birth',
+                'Civil ID',
+                'Join Date',
+                'IBAN',
+                'Phone Number',
+                'Address',
+                'Share Value',
+                'Share Quantity',
+                'Savings'
+            ]
+        });
+
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
         res.write('\uFEFF');  // UTF-8 BOM
         csvStringifier.pipe(res);
 
-        shareholders.forEach(shareholder => {
-            const shareholderObject = shareholder.toObject();
-
-            // Format the ISO 8601 date string using moment
-            if (shareholderObject.DOB) {
-                shareholderObject.DOB = moment(shareholderObject.DOB).format('DD-MM-YYYY');
-            } else {
-                shareholderObject.DOB = 'Missing date'; // Handle missing DOB
+        shareholders.forEach((shareholder, index) => {
+            let shareCurrentAmount = 0;
+            if (shareholder.share && shareholder.share.purchases) {
+                shareCurrentAmount = shareholder.share.totalAmount || 0;
             }
 
-            csvStringifier.write(shareholderObject);
+            let savingsCurrentAmount = 0;
+            let amanatAmount = 0;
+            if (shareholder.savings) {
+                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
+                if (shareholder.savings.amanat) {
+                    amanatAmount = shareholder.savings.amanat.amount || 0;
+                }
+            }
+
+            const row = {
+                'Serial': shareholder.membersCode || (skip + index + 1),
+                'Full Name': shareholder.fName,
+                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'Civil ID': shareholder.civilId || 'NULL',
+                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'IBAN': shareholder.ibanNumber || '0',
+                'Phone Number': shareholder.phoneNumber || 'N/A',
+                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'Share Value': shareholder.share.totalAmount.toFixed(0),
+                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
+                'Savings': (savingsCurrentAmount).toFixed(3)
+            };
+
+            csvStringifier.write(row);
         });
 
         csvStringifier.end();
@@ -175,7 +212,163 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 };
+exports.getAllShareholdersSharesFormatted = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
+        const membersCode = req.query.membersCode || '';
 
+        let queryConditions = {};
+        if (status) queryConditions.status = status;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (membershipStatus) queryConditions.membershipStatus = membershipStatus;
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (membersCode) queryConditions.membersCode = parseInt(membersCode, 10);
+        if (gender) queryConditions.gender = gender;
+
+
+        const shareholders = await Shareholder.find(queryConditions)
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address share membersCode')
+            .populate('address')
+            .populate('share');
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'Serial',
+                'Full Name',
+                'Date of Birth',
+                'Civil ID',
+                'Join Date',
+                'IBAN',
+                'Phone Number',
+                'Address',
+                'Share Value',
+                'Share Quantity'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholders_shares.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        shareholders.forEach((shareholder, index) => {
+            let shareCurrentAmount = 0;
+            if (shareholder.share && shareholder.share.purchases) {
+                shareCurrentAmount = shareholder.share.totalAmount || 0;
+            }
+
+            const row = {
+                'Serial': shareholder.membersCode || (skip + index + 1),
+                'Full Name': shareholder.fName,
+                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'Civil ID': shareholder.civilId || 'NULL',
+                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'IBAN': shareholder.ibanNumber || '0',
+                'Phone Number': shareholder.phoneNumber || 'N/A',
+                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'Share Value': shareholder.share.totalAmount.toFixed(0),
+                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
+exports.getAllShareholdersSavingsFormatted = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
+        const membersCode = req.query.membersCode || '';
+
+        let queryConditions = {};
+        if (status) queryConditions.status = status;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (membershipStatus) queryConditions.membershipStatus = membershipStatus;
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (membersCode) queryConditions.membersCode = parseInt(membersCode, 10);
+        if (gender) queryConditions.gender = gender;
+
+        const shareholders = await Shareholder.find(queryConditions)
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address savings membersCode')
+            .populate('address')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'Serial',
+                'Full Name',
+                'Date of Birth',
+                'Civil ID',
+                'Join Date',
+                'IBAN',
+                'Phone Number',
+                'Address',
+                'Savings',
+                'Amanat'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholders_savings.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        shareholders.forEach((shareholder, index) => {
+            let savingsCurrentAmount = 0;
+            let amanatAmount = 0;
+            if (shareholder.savings) {
+                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
+                if (shareholder.savings.amanat) {
+                    amanatAmount = shareholder.savings.amanat.amount || 0;
+                }
+            }
+
+            const row = {
+                'Serial': shareholder.membersCode || (skip + index + 1),
+                'Full Name': shareholder.fName,
+                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'Civil ID': shareholder.civilId || 'NULL',
+                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'IBAN': shareholder.ibanNumber || '0',
+                'Phone Number': shareholder.phoneNumber || 'N/A',
+                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'Savings': (savingsCurrentAmount).toFixed(3),
+                'Amanat': amanatAmount.toFixed(3)
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
 exports.getShareholderActiveCount = async (req, res) => {
     try {
         const count = await Shareholder.countDocuments({ status: 0, membershipStatus: 0 });
@@ -332,6 +525,30 @@ exports.makeUserInactive = async (req, res) => {
             shareholder.membershipStatus = status;
         }
         shareholder.quitDate = quitDate;
+
+        await shareholder.save();
+
+        res.status(200).send({ status: 1, message: 'Shareholder updated successfully', shareholder });
+    } catch (err) {
+        res.status(400).send({ status: 0, message: err.message });
+    }
+};
+exports.makeUserActive = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const status = req.body.status;
+        const shareholder = await Shareholder.findById(id);
+        console.log(status)
+        if (!shareholder) {
+            return res.status(404).send({ status: 0, message: 'Shareholder not found' });
+        }
+        shareholder.status = status;
+        if (status === 0) {
+            shareholder.membershipStatus = 0;
+        } else {
+            shareholder.membershipStatus = status;
+        }
+        // shareholder.quitDate = quitDate;
 
         await shareholder.save();
 
