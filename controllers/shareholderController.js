@@ -276,8 +276,8 @@ exports.getAllShareholdersSharesFormatted = async (req, res) => {
                 'IBAN': shareholder.ibanNumber || '0',
                 'Phone Number': shareholder.phoneNumber || 'N/A',
                 'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'Share Value': shareholder.share.totalAmount.toFixed(0),
-                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000'
+                'Share Value': Math.floor(shareholder.share.totalAmount),
+                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000'
             };
 
             csvStringifier.write(row);
@@ -1648,71 +1648,71 @@ exports.getShareholderFinancials = async (req, res) => {
     }
 };
 
-    exports.getShareholderAmanatReportExport = async (req, res) => {
-        try {
-            const { status, membershipStatus, format } = req.query;
-            let queryConditions = {};
+exports.getShareholderAmanatReportExport = async (req, res) => {
+    try {
+        const { status, membershipStatus, format } = req.query;
+        let queryConditions = {};
 
-            // Construct query conditions
-            if (status) queryConditions.status = parseInt(status);
-            if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
+        // Construct query conditions
+        if (status) queryConditions.status = parseInt(status);
+        if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
 
-            // Retrieve all shareholders from the database with populated fields
-            const shareholders = await Shareholder.find(queryConditions)
-                .populate({
-                    path: 'savings',
-                    populate: { path: 'amanat', model: 'Amanat' }
-                });
-
-            // Prepare an array to store the shareholder report data
-            const reportData = shareholders.map(shareholder => {
-                return {
-                    membersCode: shareholder.membersCode,
-                    fullName: `${shareholder.fName} ${shareholder.lName}`,
-                    civilId: shareholder.civilId || 'N/A',
-                    mobileNumber: shareholder.mobileNumber || 'N/A',
-                    amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
-                };
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate({
+                path: 'savings',
+                populate: { path: 'amanat', model: 'Amanat' }
             });
 
-            // Prepare the workbook and worksheet
-            const workbook = new excel.Workbook();
-            const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
+        // Prepare an array to store the shareholder report data
+        const reportData = shareholders.map(shareholder => {
+            return {
+                membersCode: shareholder.membersCode,
+                fullName: `${shareholder.fName} ${shareholder.lName}`,
+                civilId: shareholder.civilId || 'N/A',
+                mobileNumber: shareholder.mobileNumber || 'N/A',
+                amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
+            };
+        });
 
-            // Add headers
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
+
+        // Add headers
+        worksheet.addRow([
+            'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'أمانات'
+        ]);
+
+        // Add data rows
+        reportData.forEach(record => {
             worksheet.addRow([
-                'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'أمانات'
+                record.membersCode,
+                record.fullName,
+                record.civilId,
+                record.mobileNumber,
+                record.amanatAmount
             ]);
+        });
 
-            // Add data rows
-            reportData.forEach(record => {
-                worksheet.addRow([
-                    record.membersCode,
-                    record.fullName,
-                    record.civilId,
-                    record.mobileNumber,
-                    record.amanatAmount
-                ]);
-            });
-
-            // Set content type and disposition based on format
-            if (format === 'csv') {
-                res.setHeader('Content-Type', 'text/csv');
-                res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
-                await workbook.csv.write(res);
-            } else {
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-                res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
-                await workbook.xlsx.write(res);
-            }
-            res.write('\uFEFF');  // UTF-8 BOM
-
-            res.end();
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ error: 'Internal server error' });
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
+            await workbook.xlsx.write(res);
         }
-    };
+        res.write('\uFEFF');  // UTF-8 BOM
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.withdrawShares = async (req, res) => {
     try {
         const id = req.params.id;
