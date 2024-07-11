@@ -34,12 +34,13 @@ exports.createFlat = async (req, res) => {
 
         if (tenantName && tenantContactNumber) {
             let civilIdDocument = undefined;
-            if (req.file) {
-                const fileExtension = path.extname(req.file.originalname);
+            if (req.files && req.files['civilIdDocument']) {
+                const file = req.files['civilIdDocument'][0];
+                const fileExtension = path.extname(file.originalname);
                 const newFileName = `${tenantCivilId}${fileExtension}`;
-                const newPath = path.join(path.dirname(req.file.path), newFileName);
+                const newPath = path.join(path.dirname(file.path), newFileName);
 
-                fs.renameSync(req.file.path, newPath);
+                fs.renameSync(file.path, newPath);
 
                 const fileUrl = `${req.protocol}://${req.get('host')}/uploads/civilIDs/${newFileName}`;
 
@@ -63,6 +64,23 @@ exports.createFlat = async (req, res) => {
                 await flat.save();
 
                 if (startDate && endDate && rentAmount && collectionDay) {
+                    let contractDocument = undefined;
+                    if (req.files && req.files['contractDocument']) {
+                        const file = req.files['contractDocument'][0];
+                        const fileExtension = path.extname(file.originalname);
+                        const newFileName = `contract_${flat._id}${fileExtension}`;
+                        const newPath = path.join(path.dirname(file.path), newFileName);
+
+                        fs.renameSync(file.path, newPath);
+
+                        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/contracts/${newFileName}`;
+
+                        contractDocument = {
+                            path: fileUrl,
+                            fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+                        };
+                    }
+
                     contract = await Contract.create({
                         flatId: flat._id,
                         tenantId: tenant._id,
@@ -71,6 +89,7 @@ exports.createFlat = async (req, res) => {
                         rentAmount: rentAmount,
                         collectionDay: collectionDay,
                         expired: false,
+                        contractDocument: contractDocument
                     });
                 }
             }
@@ -111,12 +130,13 @@ exports.assignTenantToFlat = async (req, res) => {
         }
 
         let civilIdDocument = undefined;
-        if (req.file) {
-            const fileExtension = path.extname(req.file.originalname);
+        if (req.files && req.files['civilIdDocument']) {
+            const file = req.files['civilIdDocument'][0];
+            const fileExtension = path.extname(file.originalname);
             const newFileName = `${tenantCivilId}${fileExtension}`;
-            const newPath = path.join(path.dirname(req.file.path), newFileName);
+            const newPath = path.join(path.dirname(file.path), newFileName);
 
-            fs.renameSync(req.file.path, newPath);
+            fs.renameSync(file.path, newPath);
 
             const fileUrl = `${req.protocol}://${req.get('host')}/uploads/civilIDs/${newFileName}`;
 
@@ -141,6 +161,23 @@ exports.assignTenantToFlat = async (req, res) => {
 
             let contract = null;
             if (startDate && endDate && rentAmount && collectionDay) {
+                let contractDocument = undefined;
+                if (req.files && req.files['contractDocument']) {
+                    const file = req.files['contractDocument'][0];
+                    const fileExtension = path.extname(file.originalname);
+                    const newFileName = `contract_${flatId}${fileExtension}`;
+                    const newPath = path.join(path.dirname(file.path), newFileName);
+
+                    fs.renameSync(file.path, newPath);
+
+                    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/contracts/${newFileName}`;
+
+                    contractDocument = {
+                        path: fileUrl,
+                        fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+                    };
+                }
+
                 contract = await Contract.create({
                     flatId: flatId,
                     tenantId: tenant._id,
@@ -149,6 +186,7 @@ exports.assignTenantToFlat = async (req, res) => {
                     rentAmount: rentAmount,
                     collectionDay: collectionDay,
                     expired: false,
+                    contractDocument: contractDocument
                 });
             }
 
@@ -489,8 +527,8 @@ exports.createFlatBackup = async (req, res) => {
                 if (startDate && endDate && rentAmount) {
                     const today = new Date();
                     const parsedEndDate = new Date(endDate);
-                    const expired = parsedEndDate <= today;
-                    console.log(expired);
+                    const expired = parsedEndDate < today;
+
                     contract = await Contract.create({
                         flatId: flat._id,
                         tenantId: tenant._id,
@@ -501,14 +539,10 @@ exports.createFlatBackup = async (req, res) => {
                         collectionDay: 5
                     });
 
-                    if (expired) {
-                        flat.vacant = true;
-                        flat.rentAmount = 0
-                    } else {
-                        flat.vacant = false;
-                        flat.tenant = tenant._id;
-
-                    }
+                    // Update flat status based on contract
+                    flat.vacant = expired;
+                    flat.tenant = tenant._id;
+                    flat.rentAmount = expired ? 0 : rentAmount;
                     await flat.save();
                 }
             }

@@ -33,3 +33,17 @@ exports.getAllTenants = async (req, res) => {
         });
     }
 };
+exports.getTenantByCivilId = async (req, res) => {
+    try {
+        const civilId = req.body.civilId;
+        const tenant = await Tenant.findOne({ civilId: civilId }).populate('flatId');
+        res.status(200).json({
+            tenant: tenant
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "An Error Occured While Fetching Tenant",
+            error: error.message
+        })
+    }
+}

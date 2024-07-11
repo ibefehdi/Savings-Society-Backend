@@ -6,7 +6,31 @@ exports.getAllVouchers = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const vouchers = await Voucher.find()
+
+        // Create a filter object
+        let filter = {};
+
+        // Filter by building
+        if (req.query.buildingId) {
+            filter.buildingId = req.query.buildingId;
+        }
+
+        // Filter by tenant name
+        if (req.query.tenantName) {
+            filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
+        }
+
+        // Filter by civil ID
+        if (req.query.civilId) {
+            filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
+        }
+
+        // Filter by contact number
+        if (req.query.contactNumber) {
+            filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
+        }
+
+        const vouchers = await Voucher.find(filter)
             .populate({
                 path: 'flatId',
                 populate: {
@@ -15,20 +39,23 @@ exports.getAllVouchers = async (req, res) => {
                 },
             })
             .populate('tenantId')
-            .populate('buildingId').skip(skip)
+            .populate('buildingId')
+            .skip(skip)
             .limit(resultsPerPage);
 
-
-        const count = await Voucher.countDocuments();
+        const count = await Voucher.countDocuments(filter);
 
         res.status(200).json({
             data: vouchers,
             count: count,
             metadata: {
                 total: count,
+                page: page,
+                resultsPerPage: resultsPerPage
             },
         });
     } catch (error) {
+        console.error('Error in getAllVouchers:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
