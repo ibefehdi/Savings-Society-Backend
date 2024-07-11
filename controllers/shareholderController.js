@@ -319,16 +319,16 @@ exports.getAllShareholdersSavingsFormatted = async (req, res) => {
         const csvStringifier = stringify({
             header: true,
             columns: [
-                'Serial',
-                'Full Name',
-                'Date of Birth',
-                'Civil ID',
-                'Join Date',
-                'IBAN',
-                'Phone Number',
-                'Address',
-                'Savings',
-                'Amanat'
+                'رقم العضوية',
+                'الاسم',
+                'تاريخ الميلاد',
+                'الرقم المدني',
+                'تاريخ الانتساب',
+                'الايبان',
+                'رقم الهاتف',
+                'العنوان',
+                'مدخرات',
+                'أمانات'
             ]
         });
 
@@ -348,22 +348,23 @@ exports.getAllShareholdersSavingsFormatted = async (req, res) => {
             }
 
             const row = {
-                'Serial': shareholder.membersCode || (skip + index + 1),
-                'Full Name': shareholder.fName,
-                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-                'Civil ID': shareholder.civilId || 'NULL',
-                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
-                'IBAN': shareholder.ibanNumber || '0',
-                'Phone Number': shareholder.phoneNumber || 'N/A',
-                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'Savings': (savingsCurrentAmount).toFixed(3),
-                'Amanat': amanatAmount.toFixed(3)
+                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'الاسم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'الرقم المدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'الايبان': shareholder.ibanNumber || '0',
+                'رقم الهاتف': shareholder.phoneNumber || 'N/A',
+                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'مدخرات': (savingsCurrentAmount).toFixed(3),
+                'أمانات': amanatAmount.toFixed(3)
             };
 
             csvStringifier.write(row);
         });
 
         csvStringifier.end();
+
 
     } catch (err) {
         res.status(500).send({ message: err.message });
@@ -1647,70 +1648,71 @@ exports.getShareholderFinancials = async (req, res) => {
     }
 };
 
-exports.getShareholderAmanatReportExport = async (req, res) => {
-    try {
-        const { status, membershipStatus, format } = req.query;
-        let queryConditions = {};
+    exports.getShareholderAmanatReportExport = async (req, res) => {
+        try {
+            const { status, membershipStatus, format } = req.query;
+            let queryConditions = {};
 
-        // Construct query conditions
-        if (status) queryConditions.status = parseInt(status);
-        if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
+            // Construct query conditions
+            if (status) queryConditions.status = parseInt(status);
+            if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
 
-        // Retrieve all shareholders from the database with populated fields
-        const shareholders = await Shareholder.find(queryConditions)
-            .populate({
-                path: 'savings',
-                populate: { path: 'amanat', model: 'Amanat' }
+            // Retrieve all shareholders from the database with populated fields
+            const shareholders = await Shareholder.find(queryConditions)
+                .populate({
+                    path: 'savings',
+                    populate: { path: 'amanat', model: 'Amanat' }
+                });
+
+            // Prepare an array to store the shareholder report data
+            const reportData = shareholders.map(shareholder => {
+                return {
+                    membersCode: shareholder.membersCode,
+                    fullName: `${shareholder.fName} ${shareholder.lName}`,
+                    civilId: shareholder.civilId || 'N/A',
+                    mobileNumber: shareholder.mobileNumber || 'N/A',
+                    amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
+                };
             });
 
-        // Prepare an array to store the shareholder report data
-        const reportData = shareholders.map(shareholder => {
-            return {
-                membersCode: shareholder.membersCode,
-                fullName: `${shareholder.fName} ${shareholder.lName}`,
-                civilId: shareholder.civilId || 'N/A',
-                mobileNumber: shareholder.mobileNumber || 'N/A',
-                amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
-            };
-        });
+            // Prepare the workbook and worksheet
+            const workbook = new excel.Workbook();
+            const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
 
-        // Prepare the workbook and worksheet
-        const workbook = new excel.Workbook();
-        const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
-
-        // Add headers
-        worksheet.addRow([
-            'Members Code', 'Full Name', 'Civil ID', 'Mobile Number', 'Amanat'
-        ]);
-
-        // Add data rows
-        reportData.forEach(record => {
+            // Add headers
             worksheet.addRow([
-                record.membersCode,
-                record.fullName,
-                record.civilId,
-                record.mobileNumber,
-                record.amanatAmount
+                'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'أمانات'
             ]);
-        });
 
-        // Set content type and disposition based on format
-        if (format === 'csv') {
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
-            await workbook.csv.write(res);
-        } else {
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
-            await workbook.xlsx.write(res);
+            // Add data rows
+            reportData.forEach(record => {
+                worksheet.addRow([
+                    record.membersCode,
+                    record.fullName,
+                    record.civilId,
+                    record.mobileNumber,
+                    record.amanatAmount
+                ]);
+            });
+
+            // Set content type and disposition based on format
+            if (format === 'csv') {
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
+                await workbook.csv.write(res);
+            } else {
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
+                await workbook.xlsx.write(res);
+            }
+            res.write('\uFEFF');  // UTF-8 BOM
+
+            res.end();
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: 'Internal server error' });
         }
-
-        res.end();
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
+    };
 exports.withdrawShares = async (req, res) => {
     try {
         const id = req.params.id;
@@ -1857,10 +1859,10 @@ exports.getTransferLogReportExport = async (req, res) => {
 
         // Add headers
         worksheet.addRow([
-            'Members Code', 'Full Name', 'Transfer Amount', 'Transfer Date',
-            'Savings Total Before Transfer', 'Savings Total After Transfer',
-            'Amanat Total Before Transfer', 'Amanat Total After Transfer',
-            'Admin Name'
+            'رقم العضوية', 'الاسم', 'قيمة التحويل', 'تاريخ التحويل',
+            'إجمالي المدخرات قبل التحويل', 'إجمالي المدخرات بعد التحويل',
+            'إجمالي الأمانات قبل التحويل', 'إجمالي الأمانات بعد التحويل',
+            'اسم المدير'
         ]);
 
         // Add data rows
@@ -1888,6 +1890,7 @@ exports.getTransferLogReportExport = async (req, res) => {
             res.setHeader('Content-Disposition', 'attachment; filename=transfer_log_report.xlsx');
             await workbook.xlsx.write(res);
         }
+        res.write('\uFEFF');  // UTF-8 BOM
 
         res.end();
     } catch (error) {
