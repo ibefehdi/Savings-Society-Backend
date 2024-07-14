@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { joiShareholderSchema } = require("../validationModels/joiModels")
 const validateRequiredFields = require('../middleware/middleware');
-const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted } = require('../controllers/shareholderController');
+const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted, updateAllSavingsIncrease, addToSavings } = require('../controllers/shareholderController');
 
 /**
  * @openapi
@@ -20,6 +20,7 @@ router.post("/shareholder/backup", createShareholderBackup)
 router.post("/shareholder/withdraw/:id", withdrawWealth);
 router.post("/shareholder/withdrawsavings/:id", withdrawSavings)
 router.post("/shareholder/movesavingstoamanat/:id", moveSavingsToAmanat)
+router.post("/shareholder/moveinteresttosavings/:id", addToSavings)
 router.post("/shareholder/withdrawshares/:id", withdrawShares)
 router.post("/shareholder/depositsavings/:id", addSavingsToShareholder)
 router.post("/shareholder/depositshares/:id", addSharesToShareholder)
@@ -43,4 +44,5 @@ router.get('/shareholder-amanat-report', getShareholderAmanatReportExport);
 router.get('/transfer-log-report', getTransferLogReportExport);
 router.get('/shareholder-share/', getAllShareholdersSharesFormatted);
 router.get('/shareholder-savings/', getAllShareholdersSavingsFormatted);
+router.get('/update-savings-increase', updateAllSavingsIncrease);
 module.exports = router;

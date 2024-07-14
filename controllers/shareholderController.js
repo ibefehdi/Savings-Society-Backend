@@ -243,16 +243,16 @@ exports.getAllShareholdersSharesFormatted = async (req, res) => {
         const csvStringifier = stringify({
             header: true,
             columns: [
-                'Serial',
-                'Full Name',
-                'Date of Birth',
-                'Civil ID',
-                'Join Date',
-                'IBAN',
-                'Phone Number',
-                'Address',
-                'Share Value',
-                'Share Quantity'
+                'رقم العضوية',
+                'الاسم',
+                'تاريخ الميلاد',
+                'الرقم المدني',
+                'تاريخ الانتساب',
+                'الايبان',
+                'رقم الهاتف',
+                'العنوان',
+                'قيمة السهم',
+                'عدد الأسهم'
             ]
         });
 
@@ -268,22 +268,23 @@ exports.getAllShareholdersSharesFormatted = async (req, res) => {
             }
 
             const row = {
-                'Serial': shareholder.membersCode || (skip + index + 1),
-                'Full Name': shareholder.fName,
-                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-                'Civil ID': shareholder.civilId || 'NULL',
-                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
-                'IBAN': shareholder.ibanNumber || '0',
-                'Phone Number': shareholder.phoneNumber || 'N/A',
-                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'Share Value': Math.floor(shareholder.share.totalAmount),
-                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000'
+                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'الاسم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'الرقم المدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'الايبان': shareholder.ibanNumber || '0',
+                'رقم الهاتف': shareholder.phoneNumber || 'N/A',
+                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'قيمة السهم': Math.floor(shareholder.share.totalAmount),
+                'عدد الأسهم': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000'
             };
 
             csvStringifier.write(row);
         });
 
         csvStringifier.end();
+
 
     } catch (err) {
         res.status(500).send({ message: err.message });
@@ -1264,11 +1265,10 @@ exports.moveSavingsToAmanat = async (req, res) => {
         const userId = req.body.userId;
         const amountToMove = Number(req.body.amountToMove);
         const year = new Date().getFullYear().toString();
-        const date = new Date(req.body.date)
-        console.log(amountToMove);
+        const date = new Date(req.body.date);
+
         const shareholder = await Shareholder.findById(id).populate({
             path: 'savings',
-
             populate: {
                 path: 'amanat',
                 model: 'Amanat'
@@ -1282,42 +1282,20 @@ exports.moveSavingsToAmanat = async (req, res) => {
         if (!shareholder.savings) {
             return res.status(404).send({ status: 1, message: 'Shareholder has no savings' });
         }
-        console.log(shareholder)
+
         const savings = shareholder.savings;
-        const oldTotalAmount = savings.totalAmount;
-        console.log("Savings: ", savings)
-        // Check if there's enough balance to move
-        if (amountToMove > savings.totalAmount) {
-            return res.status(400).send({ status: 2, message: "Insufficient funds to move." });
+
+        // Check if there's enough balance in savingsIncrease to move
+        if (amountToMove > savings.savingsIncrease) {
+            return res.status(400).send({ status: 2, message: "Insufficient funds in savings increase to move." });
         }
 
-        let remainingAmountToMove = amountToMove;
-        console.log("RemainingAmountToMove: ", remainingAmountToMove)
-        // Iterate through the deposits and update the currentAmount
-        for (let i = 0; i < savings.deposits.length; i++) {
-            const deposit = savings.deposits[i];
-            console.log("Deposit ", i, ": ", deposit)
-            if (remainingAmountToMove >= deposit.currentAmount) {
-                remainingAmountToMove -= deposit.currentAmount;
-                deposit.currentAmount = 0;
-            } else {
-                deposit.currentAmount -= remainingAmountToMove;
-                remainingAmountToMove = 0;
-            }
-
-            if (remainingAmountToMove === 0) {
-                break;
-            }
-        }
-
-        // Update the totalAmount in savings
-        savings.totalAmount -= amountToMove;
-        console.log("TotalAmount: ", savings.totalAmount);
+        // Update the savingsIncrease
+        savings.savingsIncrease -= amountToMove;
         await savings.save();
 
         // Create or update Amanat
         let amanat = savings.amanat;
-        console.log("Amanat: ", amanat)
         if (!amanat) {
             amanat = new Amanat({
                 amount: amountToMove,
@@ -1357,7 +1335,73 @@ exports.moveSavingsToAmanat = async (req, res) => {
         res.status(200).send({
             status: 0,
             response,
-            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Savings to Amanat.`
+            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Savings Increase to Amanat.`
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.addToSavings = async (req, res) => {
+    try {
+        const id = req.params.id; // Shareholder ID
+        const userId = req.body.userId; // Admin ID
+        const amountToAdd = Number(req.body.amountToWithdraw);
+        const date = new Date(req.body.date);
+
+        const shareholder = await Shareholder.findById(id).populate('savings');
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
+        }
+
+        const savings = shareholder.savings;
+
+        // Update totalAmount
+        savings.totalAmount += amountToAdd;
+        savings.savingsIncrease -= amountToAdd;
+        // Create new deposit
+        const newDeposit = {
+            initialAmount: amountToAdd,
+            currentAmount: amountToAdd,
+            date: date,
+            lastUpdateDate: date
+        };
+
+        savings.deposits.push(newDeposit);
+
+        // Save the updated savings
+        await savings.save();
+
+        // Update the shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        // Create a deposit log
+        const depositLog = new DepositHistory({
+            shareholder: shareholder._id,
+            savings: savings._id,
+            amount: amountToAdd,
+            date: date,
+            admin: userId
+        });
+        await depositLog.save();
+
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            newDeposit: newDeposit,
+            amountAdded: amountToAdd
+        };
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message: `${shareholder.fName} ${shareholder.lName} has added ${amountToAdd} to their Savings.`
         });
 
     } catch (err) {
@@ -1383,14 +1427,14 @@ exports.withdrawAmanat = async (req, res) => {
         }
         console.log("This is amanat", shareholder.savings.amanat);
         // Check if savings have already been withdrawn
-        if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                savings: shareholder.savings.amanat,
-                link: `/printsavingswithdrawal/${shareholder.id}`
-            };
-            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
-        }
+        // if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         savings: shareholder.savings.amanat,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`
+        //     };
+        //     return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        // }
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
 
@@ -1509,15 +1553,15 @@ exports.withdrawSavings = async (req, res) => {
         const savings = shareholder.savings;
         const oldTotalAmount = savings.totalAmount;
 
-        // Check if savings have already been withdrawn
-        if (savings.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                savings: savings,
-                link: `/printsavingswithdrawal/${shareholder.id}`
-            };
-            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
-        }
+        // // Check if savings have already been withdrawn
+        // if (savings.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         savings: savings,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`
+        //     };
+        //     return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        // }
 
         // Check if there's enough balance to withdraw
         if (amountToWithdraw > savings.totalAmount) {
@@ -1618,11 +1662,12 @@ exports.getShareholderFinancials = async (req, res) => {
         }
 
         // Get the savings data for the given year.
-        const savings = shareholder.savings ? shareholder.savings.totalAmount : null;
-        console.log(savings)
+        const savings = shareholder.savings ? shareholder.savings.totalAmount.toFixed(3) : null;
+        const savingsIncrease = shareholder.savings ? shareholder.savings.savingsIncrease.toFixed(3) : null;
+        // console.log(savings)
         // Find the specific share data for the given year.
-        const share = shareholder.share ? shareholder.share.totalShareAmount : null;
-        const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
+        const share = shareholder.share ? shareholder.share.totalShareAmount.toFixed(3) : null;
+        const shareValue = shareholder.share ? shareholder.share.totalAmount.toFixed(3) : null;
 
         console.log(shareholder.savings.amanat)
         // Prepare the response.
@@ -1631,6 +1676,7 @@ exports.getShareholderFinancials = async (req, res) => {
             sharesTotalAmount: share || null,
             shareValue: shareValue || null,
             amanat: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : null,
+            savingsIncrease: savingsIncrease || null
         };
 
         // Return the data to the client.
@@ -1729,18 +1775,18 @@ exports.withdrawShares = async (req, res) => {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
         console.log(shareholder)
-        if (shareholder.share && shareholder.share.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                share: shareholder.share,
-                link: `/printsavingswithdrawal/${shareholder.id}`,
-            };
-            return res.status(200).send({
-                status: 0,
-                response,
-                message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.`,
-            });
-        }
+        // if (shareholder.share && shareholder.share.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         share: shareholder.share,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`,
+        //     };
+        //     return res.status(200).send({
+        //         status: 0,
+        //         response,
+        //         message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.`,
+        //     });
+        // }
 
         const oldTotalAmount = shareholder.share ? shareholder.share.totalAmount : 0;
         const oldTotalShareAmount = shareholder.share ? shareholder.share.totalShareAmount : 0;
@@ -1895,6 +1941,36 @@ exports.getTransferLogReportExport = async (req, res) => {
         res.end();
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+exports.updateAllSavingsIncrease = async (req, res) => {
+    try {
+        // Fetch all savings records
+        const allSavings = await Saving.find({}).populate('deposits');
+
+        let updatedCount = 0;
+
+        for (const savings of allSavings) {
+            let savingsIncrease = 0;
+
+            if (savings.deposits && savings.deposits.length > 0) {
+                savings.deposits.forEach(deposit => {
+                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
+                });
+            }
+
+            // Update the savings record with the calculated savingsIncrease
+            await Saving.findByIdAndUpdate(savings._id, { savingsIncrease });
+            updatedCount++;
+        }
+
+        res.json({
+            message: `Successfully updated savingsIncrease for ${updatedCount} savings records.`,
+            updatedCount
+        });
+    } catch (error) {
+        console.error('Error updating savingsIncrease:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

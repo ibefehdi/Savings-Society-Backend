@@ -5,7 +5,7 @@ const excel = require('exceljs');
 
 exports.getAllVouchers = async (req, res) => {
     try {
-        const page = parseInt(req.query.page, 10) || 1;
+        const page = parseInt(req.query.page, 10) || 0;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 

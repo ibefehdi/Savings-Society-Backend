@@ -140,9 +140,9 @@ schedule.scheduleJob(cronSchedule, async () => {
     const savings = await Saving.find();
     for (let saving of savings) {
         try {
-            const currentAmount = await saving.calculateCurrentPrice();
-            console.log("This is the current amount", currentAmount);
-            await Saving.updateOne({ _id: saving._id }, { $set: { currentAmount: currentAmount } });
+            const savingsIncrease = await saving.calculateCurrentPrice();
+            console.log("This is the current amount", savingsIncrease);
+            await Saving.updateOne({ _id: saving._id }, { $set: { savingsIncrease: savingsIncrease } });
         } catch (err) {
             console.error('Error updating share:', err);
         }

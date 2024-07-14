@@ -6,8 +6,8 @@ const { Readable } = require('stream');
 
 exports.getAllShareholderAmanatReport = async (req, res) => {
     try {
-        const { year, membersCode, fName, lName, civilId, status, gender, area } = req.query;
-        const queryConditions = {};
+        const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
+        const queryConditions = { status: 0 };
 
         // Construct query conditions
         if (year) queryConditions.year = year;
@@ -64,8 +64,8 @@ exports.getAllShareholderAmanatReport = async (req, res) => {
 
 exports.getAllShareholderReport = async (req, res) => {
     try {
-        const { year, membersCode, fName, lName, civilId, status, gender, area } = req.query;
-        const queryConditions = {};
+        const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
+        const queryConditions = { status: 0 };
 
         // Construct query conditions
         if (year) queryConditions.year = year;
@@ -73,10 +73,9 @@ exports.getAllShareholderReport = async (req, res) => {
         if (fName) queryConditions.fName = fName;
         if (lName) queryConditions.lName = lName;
         if (civilId) queryConditions.civilId = civilId;
-        if (status) queryConditions.status = status;
         if (gender) queryConditions.gender = gender;
         if (area) queryConditions.Area = area;
-        console.log(area)
+
         // Retrieve all shareholders from the database with populated fields
         const shareholders = await Shareholder.find(queryConditions)
             .populate('share')
@@ -96,15 +95,9 @@ exports.getAllShareholderReport = async (req, res) => {
                 shareCurrentAmount = share.totalAmount;
             }
 
-            // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            // Get the savings increase directly from the savings record
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -113,7 +106,7 @@ exports.getAllShareholderReport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = savingsCurrentAmount + amanatAmount;
+            const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
 
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await WithdrawalHistory.find({
@@ -162,8 +155,8 @@ exports.getAllShareholderReport = async (req, res) => {
 
 exports.getShareholderReportExport = async (req, res) => {
     try {
-        const { year, membersCode, fName, lName, civilId, status, gender, area, format } = req.query;
-        const queryConditions = {};
+        const { year, membersCode, fName, lName, civilId, gender, area, format } = req.query;
+        const queryConditions = { status: 0 };
 
         // Construct query conditions
         if (year) queryConditions.year = year;
@@ -195,14 +188,8 @@ exports.getShareholderReportExport = async (req, res) => {
             }
 
             // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -303,7 +290,8 @@ exports.getAllShareholderByYear = async (req, res) => {
             joinDate: {
                 $gte: startDate,
                 $lt: endDate
-            }
+            },
+            status: 0
         };
 
         // Execute the query with pagination
@@ -339,14 +327,8 @@ exports.getAllShareholderByYear = async (req, res) => {
             }
 
             // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -431,7 +413,8 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             quitDate: {
                 $gte: startDate,
                 $lt: endDate
-            }
+            },
+            status: 0
         };
 
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({
@@ -464,14 +447,8 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             }
 
             // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -528,7 +505,8 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         const skip = (page - 1) * resultsPerPage;
         const workplace = req.query.workplace;
         const queryConditions = {
-            workplace: workplace
+            workplace: workplace,
+            status: 0
         };
         console.log(queryConditions);
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({
@@ -561,14 +539,8 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
             }
 
             // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -619,3 +591,79 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 }
+exports.getShareholderReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Retrieve the shareholder from the database with populated fields
+        const shareholder = await Shareholder.findById(id)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        if (!shareholder) {
+            return res.status(404).json({ error: 'Shareholder not found' });
+        }
+
+        const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
+
+        // Calculate the share increase and current amount
+        let shareIncrease = 0;
+        let shareCurrentAmount = 0;
+        if (share && share.purchases) {
+            share.purchases.forEach(purchase => {
+                shareIncrease += purchase.currentAmount - purchase.initialAmount;
+            });
+            shareCurrentAmount = share.totalAmount;
+        }
+
+        // Get the savings increase directly from the savings record
+        let savingsIncrease = savings ? savings.savingsIncrease : 0;
+        let savingsCurrentAmount = savings ? savings.totalAmount : 0;
+
+        // Calculate the amanat amount
+        let amanatAmount = 0;
+        if (savings && savings.amanat) {
+            amanatAmount = savings.amanat.amount;
+        }
+
+        // Calculate the total
+        const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
+
+        // Fetch withdrawal history for this shareholder
+        const withdrawalHistories = await WithdrawalHistory.find({
+            shareholder: _id,
+            type: 'Savings'
+        });
+
+        // Calculate transferSavings
+        const transferSavings = withdrawalHistories.reduce((total, history) => {
+            return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+        }, 0);
+
+        // Prepare the financial reporting object for the shareholder
+        const financialReport = {
+            _id,
+            membersCode,
+            civilId,
+            savingsDetails: savings || {},
+            shareDetails: share || {},
+            fullName: `${fName} ${lName}`,
+            shareIncrease,
+            shareCurrentAmount,
+            savingsIncrease,
+            savingsCurrentAmount,
+            amanatAmount,
+            total,
+            transferSavings
+        };
+
+        res.json({
+            data: [financialReport],
+            metadata: { total: 1 },
+            grandTotal: total.toFixed(3)
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

@@ -31,7 +31,9 @@ exports.createFlat = async (req, res) => {
 
         let tenant = null;
         let contract = null;
-
+        if (!tenantName || !tenantContactNumber || !startDate || !endDate || !rentAmount || !collectionDay) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
         if (tenantName && tenantContactNumber) {
             let civilIdDocument = undefined;
             if (req.files && req.files['civilIdDocument']) {
