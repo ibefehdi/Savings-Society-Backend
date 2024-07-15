@@ -1,44 +1,88 @@
 const Shareholder = require('../models/shareholderSchema');
-
+const WithdrawalHistory = require('../models/withdrawalHistory');
 const xss = require('xss');
+const excel = require('exceljs');
+const { Readable } = require('stream');
 
-exports.getAllShareholderReport = async (req, res) => {
+exports.getAllShareholderAmanatReport = async (req, res) => {
     try {
-        const { year, membersCode, fName, lName, civilId, status, gender } = req.query;
-        const queryConditions = {};
+        const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
+        const queryConditions = { status: 0 };
 
+        // Construct query conditions
+        if (year) queryConditions.year = year;
+        if (membersCode) queryConditions.membersCode = membersCode;
+        if (fName) queryConditions.fName = fName;
+        if (lName) queryConditions.lName = lName;
+        if (civilId) queryConditions.civilId = civilId;
+        if (status) queryConditions.status = status;
+        if (gender) queryConditions.gender = gender;
+        if (area) queryConditions.Area = area;
         // Retrieve all shareholders from the database with populated fields
-        let shareholders;
-        if (year) {
-            queryConditions.year = year;
-        }
-        if (membersCode) {
-            queryConditions.membersCode = membersCode;
-        }
-        if (fName) {
-            queryConditions.fName = fName;
-        }
-        if (lName) {
-            queryConditions.lName = lName;
-        }
-        if (civilId) {
-            queryConditions.civilId = civilId;
-        }
-        if (status) {
-            queryConditions.status = status;
-        }
-        if (gender) {
-            queryConditions.gender = gender;
-        }
-
-        shareholders = await Shareholder.find(queryConditions)
+        const shareholders = await Shareholder.find(queryConditions)
             .populate('share')
             .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
 
-        console.log(shareholders);
+        // Filter shareholders who have amanat
+        const shareholdersWithAmanat = shareholders.filter(shareholder => shareholder.savings && shareholder.savings.amanat);
+
+        // Prepare an array to store the amanat reporting for each shareholder
+        const amanatReports = shareholdersWithAmanat.map(shareholder => {
+            const { _id, membersCode, civilId, fName, lName, savings } = shareholder;
+
+            // Extract amanat details
+            const amanatAmount = savings.amanat ? savings.amanat.amount : 0;
+
+            // Prepare the amanat reporting object for the shareholder
+            return {
+                _id,
+                membersCode,
+                civilId,
+                fullName: `${fName} ${lName}`,
+                amanatAmount,
+                total: amanatAmount,
+                amanatDetails: savings.amanat
+            };
+        });
+
+        const count = amanatReports.length;
+        const grandTotal = amanatReports.reduce((sum, report) => sum + report.amanatAmount, 0).toFixed(3);
+        console.log(grandTotal)
+        res.json({
+            data: amanatReports,
+            count: count,
+            grandTotal: grandTotal,
+            metadata: { total: count }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+
+
+exports.getAllShareholderReport = async (req, res) => {
+    try {
+        const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
+        const queryConditions = { status: 0 };
+
+        // Construct query conditions
+        if (year) queryConditions.year = year;
+        if (membersCode) queryConditions.membersCode = membersCode;
+        if (fName) queryConditions.fName = fName;
+        if (lName) queryConditions.lName = lName;
+        if (civilId) queryConditions.civilId = civilId;
+        if (gender) queryConditions.gender = gender;
+        if (area) queryConditions.Area = area;
+
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
 
         // Prepare an array to store the financial reporting for each shareholder
-        const financialReports = shareholders.map(shareholder => {
+        const financialReports = await Promise.all(shareholders.map(async shareholder => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
@@ -51,15 +95,9 @@ exports.getAllShareholderReport = async (req, res) => {
                 shareCurrentAmount = share.totalAmount;
             }
 
-            // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            // Get the savings increase directly from the savings record
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -68,7 +106,18 @@ exports.getAllShareholderReport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
+
+            // Fetch withdrawal history for this shareholder
+            const withdrawalHistories = await WithdrawalHistory.find({
+                shareholder: _id,
+                type: 'Savings'
+            });
+
+            // Calculate transferSavings
+            const transferSavings = withdrawalHistories.reduce((total, history) => {
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            }, 0);
 
             // Prepare the financial reporting object for the shareholder
             return {
@@ -84,21 +133,141 @@ exports.getAllShareholderReport = async (req, res) => {
                 savingsCurrentAmount,
                 amanatAmount,
                 total,
+                transferSavings
             };
-        });
+        }));
 
         const count = shareholders.length;
+        const grandTotal = financialReports.reduce((sum, report) => sum + report.total, 0).toFixed(3);
 
         res.json({
             data: financialReports,
             count: count,
-            metadata: { total: count }
+            metadata: { total: count },
+            grandTotal: grandTotal
         });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
     }
-}
+};
+
+
+exports.getShareholderReportExport = async (req, res) => {
+    try {
+        const { year, membersCode, fName, lName, civilId, gender, area, format } = req.query;
+        const queryConditions = { status: 0 };
+
+        // Construct query conditions
+        if (year) queryConditions.year = year;
+        if (membersCode) queryConditions.membersCode = membersCode;
+        if (fName) queryConditions.fName = fName;
+        if (lName) queryConditions.lName = lName;
+        if (civilId) queryConditions.civilId = civilId;
+        if (status) queryConditions.status = status;
+        if (gender) queryConditions.gender = gender;
+        if (area) queryConditions.Area = area;
+
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        // Prepare an array to store the financial reporting for each shareholder
+        const financialReports = await Promise.all(shareholders.map(async shareholder => {
+            const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
+
+            // Calculate the share increase and current amount
+            let shareIncrease = 0;
+            let shareCurrentAmount = 0;
+            if (share && share.purchases) {
+                share.purchases.forEach(purchase => {
+                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
+                });
+                shareCurrentAmount = share.totalAmount;
+            }
+
+            // Calculate the savings increase and current amount
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
+
+            // Calculate the amanat amount
+            let amanatAmount = 0;
+            if (savings && savings.amanat) {
+                amanatAmount = savings.amanat.amount;
+            }
+
+            // Calculate the total
+            const total = savingsCurrentAmount + amanatAmount;
+
+            // Fetch withdrawal history for this shareholder
+            const withdrawalHistories = await WithdrawalHistory.find({
+                shareholder: _id,
+                type: 'Savings'
+            });
+
+            // Calculate transferSavings
+            const transferSavings = withdrawalHistories.reduce((total, history) => {
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            }, 0);
+
+            // Prepare the financial reporting object for the shareholder
+            return {
+                membersCode,
+                civilId,
+                fullName: `${fName} ${lName}`,
+                shareIncrease,
+                shareCurrentAmount,
+                savingsIncrease,
+                savingsCurrentAmount,
+                amanatAmount,
+                total,
+                transferSavings
+            };
+        }));
+
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Shareholder Report');
+
+        // Add headers
+        worksheet.addRow([
+            'Members Code', 'Full Name', 'Share Increase', 'Share Current Amount',
+            'Savings Increase', 'Savings Current Amount', 'Amanat Amount', 'Total', 'Transfer Savings'
+        ]);
+
+        // Add data rows
+        financialReports.forEach(report => {
+            worksheet.addRow([
+                report.membersCode,
+                report.fullName,
+                report.shareIncrease,
+                report.shareCurrentAmount,
+                report.savingsIncrease,
+                report.savingsCurrentAmount,
+                report.amanatAmount,
+                report.savingsCurrentAmount,
+                report.transferSavings
+            ]);
+        });
+
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_report.xlsx');
+            await workbook.xlsx.write(res);
+        }
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.getAllShareholderByYear = async (req, res) => {
     try {
         // Pagination setup
@@ -121,7 +290,8 @@ exports.getAllShareholderByYear = async (req, res) => {
             joinDate: {
                 $gte: startDate,
                 $lt: endDate
-            }
+            },
+            status: 0
         };
 
         // Execute the query with pagination
@@ -142,27 +312,23 @@ exports.getAllShareholderByYear = async (req, res) => {
         console.log(shareholders)
         const count = shareholders.length;
         // Prepare an array to store the financial reporting for each shareholder
-        const financialReports = shareholders.map(shareholder => {
+        // Prepare an array to store the financial reporting for each shareholder
+        const financialReports = await Promise.all(shareholders.map(async shareholder => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
-            // Calculate the total share increase and current amount
-            let totalShareIncrease = 0;
-            let totalShareCurrentAmount = 0;
-            const shareDetails = share.map(entry => {
-                const { initialAmount, currentAmount, year } = entry;
-                const shareIncrease = currentAmount - initialAmount;
-                totalShareIncrease += shareIncrease;
-                totalShareCurrentAmount += currentAmount;
-                return { initialAmount, currentAmount, year };
-            });
-
-            // Calculate the savings increase
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings) {
-                savingsIncrease = savings.currentAmount - savings.initialAmount;
-                savingsCurrentAmount = savings.currentAmount;
+            // Calculate the share increase and current amount
+            let shareIncrease = 0;
+            let shareCurrentAmount = 0;
+            if (share && share.purchases) {
+                share.purchases.forEach(purchase => {
+                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
+                });
+                shareCurrentAmount = share.totalAmount;
             }
+
+            // Calculate the savings increase and current amount
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -171,7 +337,18 @@ exports.getAllShareholderByYear = async (req, res) => {
             }
 
             // Calculate the total
-            const total = totalShareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+
+            // Fetch withdrawal history for this shareholder
+            const withdrawalHistories = await WithdrawalHistory.find({
+                shareholder: _id,
+                type: 'Savings'
+            });
+
+            // Calculate transferSavings
+            const transferSavings = withdrawalHistories.reduce((total, history) => {
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            }, 0);
 
             // Prepare the financial reporting object for the shareholder
             return {
@@ -179,16 +356,17 @@ exports.getAllShareholderByYear = async (req, res) => {
                 membersCode,
                 civilId,
                 savingsDetails: savings || {},
-                shareDetails,
+                shareDetails: share || {},
                 fullName: `${fName} ${lName}`,
-                totalShareIncrease,
-                totalShareCurrentAmount,
+                shareIncrease,
+                shareCurrentAmount,
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
                 total,
+                transferSavings
             };
-        });
+        }));
         res.status(200).send({
             data: financialReports,
             count: count,
@@ -235,7 +413,8 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             quitDate: {
                 $gte: startDate,
                 $lt: endDate
-            }
+            },
+            status: 0
         };
 
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({
@@ -254,27 +433,22 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
         // Count total documents matching the query
         const count = shareholders.length;
         // Prepare an array to store the financial reporting for each shareholder
-        const financialReports = shareholders.map(shareholder => {
+        const financialReports = await Promise.all(shareholders.map(async shareholder => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
-            // Calculate the total share increase and current amount
-            let totalShareIncrease = 0;
-            let totalShareCurrentAmount = 0;
-            const shareDetails = share.map(entry => {
-                const { initialAmount, currentAmount, year } = entry;
-                const shareIncrease = currentAmount - initialAmount;
-                totalShareIncrease += shareIncrease;
-                totalShareCurrentAmount += currentAmount;
-                return { initialAmount, currentAmount, year };
-            });
-
-            // Calculate the savings increase
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings) {
-                savingsIncrease = savings.currentAmount - savings.initialAmount;
-                savingsCurrentAmount = savings.currentAmount;
+            // Calculate the share increase and current amount
+            let shareIncrease = 0;
+            let shareCurrentAmount = 0;
+            if (share && share.purchases) {
+                share.purchases.forEach(purchase => {
+                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
+                });
+                shareCurrentAmount = share.totalAmount;
             }
+
+            // Calculate the savings increase and current amount
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -283,7 +457,18 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             }
 
             // Calculate the total
-            const total = totalShareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+
+            // Fetch withdrawal history for this shareholder
+            const withdrawalHistories = await WithdrawalHistory.find({
+                shareholder: _id,
+                type: 'Savings'
+            });
+
+            // Calculate transferSavings
+            const transferSavings = withdrawalHistories.reduce((total, history) => {
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            }, 0);
 
             // Prepare the financial reporting object for the shareholder
             return {
@@ -291,16 +476,17 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
                 membersCode,
                 civilId,
                 savingsDetails: savings || {},
-                shareDetails,
+                shareDetails: share || {},
                 fullName: `${fName} ${lName}`,
-                totalShareIncrease,
-                totalShareCurrentAmount,
+                shareIncrease,
+                shareCurrentAmount,
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
                 total,
+                transferSavings
             };
-        });
+        }));
 
         res.status(200).send({
             data: financialReports,
@@ -319,7 +505,8 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         const skip = (page - 1) * resultsPerPage;
         const workplace = req.query.workplace;
         const queryConditions = {
-            workplace: workplace
+            workplace: workplace,
+            status: 0
         };
         console.log(queryConditions);
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({
@@ -338,7 +525,7 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         // Count total documents matching the query
         const count = shareholders.length;
         // Prepare an array to store the financial reporting for each shareholder
-        const financialReports = shareholders.map(shareholder => {
+        const financialReports = await Promise.all(shareholders.map(async shareholder => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
@@ -352,14 +539,8 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
             }
 
             // Calculate the savings increase and current amount
-            let savingsIncrease = 0;
-            let savingsCurrentAmount = 0;
-            if (savings && savings.deposits) {
-                savings.deposits.forEach(deposit => {
-                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
-                });
-                savingsCurrentAmount = savings.totalAmount;
-            }
+            let savingsIncrease = savings ? savings.savingsIncrease : 0;
+            let savingsCurrentAmount = savings ? savings.totalAmount : 0;
 
             // Calculate the amanat amount
             let amanatAmount = 0;
@@ -369,6 +550,17 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
 
             // Calculate the total
             const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+
+            // Fetch withdrawal history for this shareholder
+            const withdrawalHistories = await WithdrawalHistory.find({
+                shareholder: _id,
+                type: 'Savings'
+            });
+
+            // Calculate transferSavings
+            const transferSavings = withdrawalHistories.reduce((total, history) => {
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            }, 0);
 
             // Prepare the financial reporting object for the shareholder
             return {
@@ -384,8 +576,9 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
                 savingsCurrentAmount,
                 amanatAmount,
                 total,
+                transferSavings
             };
-        });
+        }));
         res.status(200).send({
             data: financialReports,
             count: count,
@@ -398,3 +591,79 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 }
+exports.getShareholderReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Retrieve the shareholder from the database with populated fields
+        const shareholder = await Shareholder.findById(id)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        if (!shareholder) {
+            return res.status(404).json({ error: 'Shareholder not found' });
+        }
+
+        const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
+
+        // Calculate the share increase and current amount
+        let shareIncrease = 0;
+        let shareCurrentAmount = 0;
+        if (share && share.purchases) {
+            share.purchases.forEach(purchase => {
+                shareIncrease += purchase.currentAmount - purchase.initialAmount;
+            });
+            shareCurrentAmount = share.totalAmount;
+        }
+
+        // Get the savings increase directly from the savings record
+        let savingsIncrease = savings ? savings.savingsIncrease : 0;
+        let savingsCurrentAmount = savings ? savings.totalAmount : 0;
+
+        // Calculate the amanat amount
+        let amanatAmount = 0;
+        if (savings && savings.amanat) {
+            amanatAmount = savings.amanat.amount;
+        }
+
+        // Calculate the total
+        const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
+
+        // Fetch withdrawal history for this shareholder
+        const withdrawalHistories = await WithdrawalHistory.find({
+            shareholder: _id,
+            type: 'Savings'
+        });
+
+        // Calculate transferSavings
+        const transferSavings = withdrawalHistories.reduce((total, history) => {
+            return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+        }, 0);
+
+        // Prepare the financial reporting object for the shareholder
+        const financialReport = {
+            _id,
+            membersCode,
+            civilId,
+            savingsDetails: savings || {},
+            shareDetails: share || {},
+            fullName: `${fName} ${lName}`,
+            shareIncrease,
+            shareCurrentAmount,
+            savingsIncrease,
+            savingsCurrentAmount,
+            amanatAmount,
+            total,
+            transferSavings
+        };
+
+        res.json({
+            data: [financialReport],
+            metadata: { total: 1 },
+            grandTotal: total.toFixed(3)
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

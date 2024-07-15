@@ -29,7 +29,10 @@ const contractSchema = new mongoose.Schema({
         max: 31,
     },
     expired: { type: Boolean, required: true },
-
+    contractDocument: {
+        path: { type: String },
+        fileType: { type: String, enum: ['image', 'pdf'] }
+    }
 });
 contractSchema.pre('save', function (next) {
     if (this.endDate <= new Date() && !this.expired) {

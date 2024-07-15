@@ -12,6 +12,7 @@ const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const XLSX = require('xlsx');
 const xss = require('xss');
+const excel = require('exceljs');
 const mongoose = require('mongoose');
 
 function sanitizeInput(input) {
@@ -30,6 +31,7 @@ exports.getAllShareholders = async (req, res) => {
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
         const status = req.query.status || 0;
+        const area = req.query.area || '';
         const currentYear = new Date().getFullYear();
         console.log(workplace)
         let queryConditions = {
@@ -59,10 +61,12 @@ exports.getAllShareholders = async (req, res) => {
         if (workplace) {
             queryConditions.workplace = workplace || '';
         }
+        if (area) {
+            queryConditions.Area = area;
+        }
         const shareholders = await Shareholder.find(queryConditions)
             .populate({
                 path: 'savings',
-
                 populate: {
                     path: 'amanat',
                     model: 'Amanat'
@@ -104,16 +108,12 @@ exports.getShareholdersWithAmanat = async (req, res) => {
             })
             .skip(skip)
             .limit(resultsPerPage);
-        // Filter out shareholders without amanat in their savings
         const shareholdersWithAmanat = shareholders.filter(shareholder =>
             shareholder.savings && shareholder.savings.amanat && shareholder.savings.amanat.amount !== 0
         );
-        console.log(shareholdersWithAmanat)
-
         const total = await Shareholder.countDocuments({
             'savings.amanat': { $exists: true, $ne: null }
         });
-        console.log("Total: " + total)
         res.status(200).send({
             data: shareholdersWithAmanat,
             count: count,
@@ -146,27 +146,64 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         if (gender) queryConditions.gender = gender;
 
         const shareholders = await Shareholder.find(queryConditions)
-            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
-            .populate('share')
-            .populate('address');
 
-        const csvStringifier = stringify({ header: true });
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address share savings membersCode')
+            .populate('address')
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'Serial',
+                'Full Name',
+                'Date of Birth',
+                'Civil ID',
+                'Join Date',
+                'IBAN',
+                'Phone Number',
+                'Address',
+                'Share Value',
+                'Share Quantity',
+                'Savings'
+            ]
+        });
+
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
         res.write('\uFEFF');  // UTF-8 BOM
         csvStringifier.pipe(res);
 
-        shareholders.forEach(shareholder => {
-            const shareholderObject = shareholder.toObject();
-
-            // Format the ISO 8601 date string using moment
-            if (shareholderObject.DOB) {
-                shareholderObject.DOB = moment(shareholderObject.DOB).format('DD-MM-YYYY');
-            } else {
-                shareholderObject.DOB = 'Missing date'; // Handle missing DOB
+        shareholders.forEach((shareholder, index) => {
+            let shareCurrentAmount = 0;
+            if (shareholder.share && shareholder.share.purchases) {
+                shareCurrentAmount = shareholder.share.totalAmount || 0;
             }
 
-            csvStringifier.write(shareholderObject);
+            let savingsCurrentAmount = 0;
+            let amanatAmount = 0;
+            if (shareholder.savings) {
+                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
+                if (shareholder.savings.amanat) {
+                    amanatAmount = shareholder.savings.amanat.amount || 0;
+                }
+            }
+
+            const row = {
+                'Serial': shareholder.membersCode || (skip + index + 1),
+                'Full Name': shareholder.fName,
+                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'Civil ID': shareholder.civilId || 'NULL',
+                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'IBAN': shareholder.ibanNumber || '0',
+                'Phone Number': shareholder.phoneNumber || 'N/A',
+                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'Share Value': shareholder.share.totalAmount.toFixed(0),
+                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
+                'Savings': (savingsCurrentAmount).toFixed(3)
+            };
+
+            csvStringifier.write(row);
         });
 
         csvStringifier.end();
@@ -175,7 +212,165 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 };
+exports.getAllShareholdersSharesFormatted = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
+        const membersCode = req.query.membersCode || '';
 
+        let queryConditions = {};
+        if (status) queryConditions.status = status;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (membershipStatus) queryConditions.membershipStatus = membershipStatus;
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (membersCode) queryConditions.membersCode = parseInt(membersCode, 10);
+        if (gender) queryConditions.gender = gender;
+
+
+        const shareholders = await Shareholder.find(queryConditions)
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address share membersCode')
+            .populate('address')
+            .populate('share');
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم العضوية',
+                'الاسم',
+                'تاريخ الميلاد',
+                'الرقم المدني',
+                'تاريخ الانتساب',
+                'الايبان',
+                'رقم الهاتف',
+                'العنوان',
+                'قيمة السهم',
+                'عدد الأسهم'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholders_shares.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        shareholders.forEach((shareholder, index) => {
+            let shareCurrentAmount = 0;
+            if (shareholder.share && shareholder.share.purchases) {
+                shareCurrentAmount = shareholder.share.totalAmount || 0;
+            }
+
+            const row = {
+                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'الاسم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'الرقم المدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'الايبان': shareholder.ibanNumber || '0',
+                'رقم الهاتف': shareholder.phoneNumber || 'N/A',
+                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'قيمة السهم': Math.floor(shareholder.share.totalAmount),
+                'عدد الأسهم': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
+exports.getAllShareholdersSavingsFormatted = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const status = req.query.status || 0;
+        const fName = req.query.fName || '';
+        const lName = req.query.lName || '';
+        const civilId = req.query.civilId || '';
+        const membershipStatus = req.query.membershipStatus || '';
+        const gender = req.query.gender || '';
+        const membersCode = req.query.membersCode || '';
+
+        let queryConditions = {};
+        if (status) queryConditions.status = status;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (membershipStatus) queryConditions.membershipStatus = membershipStatus;
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (membersCode) queryConditions.membersCode = parseInt(membersCode, 10);
+        if (gender) queryConditions.gender = gender;
+
+        const shareholders = await Shareholder.find(queryConditions)
+            .select('fName DOB civilId joinDate ibanNumber phoneNumber address savings membersCode')
+            .populate('address')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم العضوية',
+                'الاسم',
+                'تاريخ الميلاد',
+                'الرقم المدني',
+                'تاريخ الانتساب',
+                'الايبان',
+                'رقم الهاتف',
+                'العنوان',
+                'مدخرات',
+                'أمانات'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholders_savings.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        shareholders.forEach((shareholder, index) => {
+            let savingsCurrentAmount = 0;
+            let amanatAmount = 0;
+            if (shareholder.savings) {
+                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
+                if (shareholder.savings.amanat) {
+                    amanatAmount = shareholder.savings.amanat.amount || 0;
+                }
+            }
+
+            const row = {
+                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'الاسم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'الرقم المدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'الايبان': shareholder.ibanNumber || '0',
+                'رقم الهاتف': shareholder.phoneNumber || 'N/A',
+                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'مدخرات': (savingsCurrentAmount).toFixed(3),
+                'أمانات': amanatAmount.toFixed(3)
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
 exports.getShareholderActiveCount = async (req, res) => {
     try {
         const count = await Shareholder.countDocuments({ status: 0, membershipStatus: 0 });
@@ -332,6 +527,30 @@ exports.makeUserInactive = async (req, res) => {
             shareholder.membershipStatus = status;
         }
         shareholder.quitDate = quitDate;
+
+        await shareholder.save();
+
+        res.status(200).send({ status: 1, message: 'Shareholder updated successfully', shareholder });
+    } catch (err) {
+        res.status(400).send({ status: 0, message: err.message });
+    }
+};
+exports.makeUserActive = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const status = req.body.status;
+        const shareholder = await Shareholder.findById(id);
+        console.log(status)
+        if (!shareholder) {
+            return res.status(404).send({ status: 0, message: 'Shareholder not found' });
+        }
+        shareholder.status = status;
+        if (status === 0) {
+            shareholder.membershipStatus = 0;
+        } else {
+            shareholder.membershipStatus = status;
+        }
+        // shareholder.quitDate = quitDate;
 
         await shareholder.save();
 
@@ -795,6 +1014,7 @@ exports.addSavingsToShareholder = async (req, res) => {
         const initialAmount = parseFloat(req.body.newAmount);
         const adminId = req.body.adminId;
         const year = req.body.year;
+        const date = new Date(req.body.date);
 
         // Check if the parsed values are valid
         if (isNaN(initialAmount) || !adminId || isNaN(year)) {
@@ -830,15 +1050,15 @@ exports.addSavingsToShareholder = async (req, res) => {
                     {
                         initialAmount,
                         currentAmount: initialAmount,
-                        date: new Date(),
-                        lastUpdateDate: new Date(),
+                        date: date,
+                        lastUpdateDate: date,
                     },
                 ],
                 adminId: [
                     {
                         adminId,
                         amountBeforeChange: 0,
-                        timestamp: new Date(),
+                        timestamp: date,
                     },
                 ],
                 withdrawn: false,
@@ -865,13 +1085,13 @@ exports.addSavingsToShareholder = async (req, res) => {
                         deposits: {
                             initialAmount,
                             currentAmount: initialAmount,
-                            date: new Date(),
-                            lastUpdateDate: new Date(),
+                            date: date,
+                            lastUpdateDate: date,
                         },
                         adminId: {
                             adminId,
                             amountBeforeChange: oldAmount,
-                            timestamp: new Date(),
+                            timestamp: date,
                         },
                     },
                 },
@@ -893,7 +1113,7 @@ exports.addSavingsToShareholder = async (req, res) => {
             newAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0),
             admin: adminId,
             type: "Savings",
-            depositDate: new Date(),
+            depositDate: date,
         };
         await DepositHistory.create(depositSavings);
 
@@ -914,6 +1134,7 @@ exports.addSharesToShareholder = async (req, res) => {
         const newShareAmount = Number(req.body.newShareAmount);
         const adminId = req.body.adminId;
         const year = req.body.year || new Date().getFullYear();
+        const date = new Date(req.body.date);
 
         const shareholder = await Shareholder.findById(id).populate('share');
 
@@ -955,8 +1176,8 @@ exports.addSharesToShareholder = async (req, res) => {
             amount: newShareAmount,
             initialAmount: purchaseAmount,
             currentAmount: purchaseAmount,
-            date: new Date(),
-            lastUpdateDate: new Date(),
+            date: date,
+            lastUpdateDate: date,
         });
 
         share.totalAmount += purchaseAmount;
@@ -965,7 +1186,7 @@ exports.addSharesToShareholder = async (req, res) => {
             adminId: adminId,
             amountBeforeChange: oldTotalAmount,
             shareAmountBeforeChange: oldTotalShareAmount,
-            timestamp: new Date(),
+            timestamp: date,
         });
 
         await share.save();
@@ -979,7 +1200,7 @@ exports.addSharesToShareholder = async (req, res) => {
             newShareAmount: share.totalShareAmount,
             admin: adminId,
             type: "Shares",
-            depositDate: new Date(),
+            depositDate: date,
             year: year,
         };
 
@@ -1044,10 +1265,10 @@ exports.moveSavingsToAmanat = async (req, res) => {
         const userId = req.body.userId;
         const amountToMove = Number(req.body.amountToMove);
         const year = new Date().getFullYear().toString();
-        console.log(amountToMove);
+        const date = new Date(req.body.date);
+
         const shareholder = await Shareholder.findById(id).populate({
             path: 'savings',
-
             populate: {
                 path: 'amanat',
                 model: 'Amanat'
@@ -1061,47 +1282,25 @@ exports.moveSavingsToAmanat = async (req, res) => {
         if (!shareholder.savings) {
             return res.status(404).send({ status: 1, message: 'Shareholder has no savings' });
         }
-        console.log(shareholder)
+
         const savings = shareholder.savings;
-        const oldTotalAmount = savings.totalAmount;
-        console.log("Savings: ", savings)
-        // Check if there's enough balance to move
-        if (amountToMove > savings.totalAmount) {
-            return res.status(400).send({ status: 2, message: "Insufficient funds to move." });
+
+        // Check if there's enough balance in savingsIncrease to move
+        if (amountToMove > savings.savingsIncrease) {
+            return res.status(400).send({ status: 2, message: "Insufficient funds in savings increase to move." });
         }
 
-        let remainingAmountToMove = amountToMove;
-        console.log("RemainingAmountToMove: ", remainingAmountToMove)
-        // Iterate through the deposits and update the currentAmount
-        for (let i = 0; i < savings.deposits.length; i++) {
-            const deposit = savings.deposits[i];
-            console.log("Deposit ", i, ": ", deposit)
-            if (remainingAmountToMove >= deposit.currentAmount) {
-                remainingAmountToMove -= deposit.currentAmount;
-                deposit.currentAmount = 0;
-            } else {
-                deposit.currentAmount -= remainingAmountToMove;
-                remainingAmountToMove = 0;
-            }
-
-            if (remainingAmountToMove === 0) {
-                break;
-            }
-        }
-
-        // Update the totalAmount in savings
-        savings.totalAmount -= amountToMove;
-        console.log("TotalAmount: ", savings.totalAmount);
+        // Update the savingsIncrease
+        savings.savingsIncrease -= amountToMove;
         await savings.save();
 
         // Create or update Amanat
         let amanat = savings.amanat;
-        console.log("Amanat: ", amanat)
         if (!amanat) {
             amanat = new Amanat({
                 amount: amountToMove,
                 withdrawn: false,
-                date: Date.now(),
+                date: date,
                 year: year
             });
         } else {
@@ -1121,7 +1320,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
             fromSavings: savings._id,
             toAmanat: amanat._id,
             amount: amountToMove,
-            date: Date.now(),
+            date: date,
             admin: userId
         });
         await transferLog.save();
@@ -1136,7 +1335,73 @@ exports.moveSavingsToAmanat = async (req, res) => {
         res.status(200).send({
             status: 0,
             response,
-            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Savings to Amanat.`
+            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Savings Increase to Amanat.`
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.addToSavings = async (req, res) => {
+    try {
+        const id = req.params.id; // Shareholder ID
+        const userId = req.body.userId; // Admin ID
+        const amountToAdd = Number(req.body.amountToWithdraw);
+        const date = new Date(req.body.date);
+
+        const shareholder = await Shareholder.findById(id).populate('savings');
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
+        }
+
+        const savings = shareholder.savings;
+
+        // Update totalAmount
+        savings.totalAmount += amountToAdd;
+        savings.savingsIncrease -= amountToAdd;
+        // Create new deposit
+        const newDeposit = {
+            initialAmount: amountToAdd,
+            currentAmount: amountToAdd,
+            date: date,
+            lastUpdateDate: date
+        };
+
+        savings.deposits.push(newDeposit);
+
+        // Save the updated savings
+        await savings.save();
+
+        // Update the shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        // Create a deposit log
+        const depositLog = new DepositHistory({
+            shareholder: shareholder._id,
+            savings: savings._id,
+            amount: amountToAdd,
+            date: date,
+            admin: userId
+        });
+        await depositLog.save();
+
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            newDeposit: newDeposit,
+            amountAdded: amountToAdd
+        };
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message: `${shareholder.fName} ${shareholder.lName} has added ${amountToAdd} to their Savings.`
         });
 
     } catch (err) {
@@ -1148,6 +1413,8 @@ exports.withdrawAmanat = async (req, res) => {
         const id = req.params.id;
         const userId = req.body.userId;
         const amountToWithdraw = req.body.amountToWithdraw;
+        const date = new Date(req.body.date);
+
         const shareholder = await Shareholder.findOne({ _id: id }).populate({
             path: 'savings',
             populate: {
@@ -1160,14 +1427,14 @@ exports.withdrawAmanat = async (req, res) => {
         }
         console.log("This is amanat", shareholder.savings.amanat);
         // Check if savings have already been withdrawn
-        if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                savings: shareholder.savings.amanat,
-                link: `/printsavingswithdrawal/${shareholder.id}`
-            };
-            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
-        }
+        // if (shareholder.savings.amanat && shareholder.savings.amanat.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         savings: shareholder.savings.amanat,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`
+        //     };
+        //     return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        // }
         shareholder.lastEditedBy.push(userId);
         await shareholder.save();
 
@@ -1213,7 +1480,7 @@ exports.withdrawAmanat = async (req, res) => {
             newAmount: updatedSavings.amount,
             admin: userId,
             type: "Amanat",
-            withdrawalDate: Date.now()
+            withdrawalDate: date
         };
 
         const updatedDepositHistory = await WithdrawalHistory.create([withdrawAmanat]);
@@ -1267,6 +1534,8 @@ exports.withdrawSavings = async (req, res) => {
         const adminId = req.body.adminId;
         console.log("this is the userId", adminId);
         const year = new Date().getFullYear();
+        const date = new Date(req.body.date);
+
         const amountToWithdraw = req.body.amountToWithdraw;
         console.log(id)
         const shareholder = await Shareholder.findById(id).populate('savings');
@@ -1284,15 +1553,15 @@ exports.withdrawSavings = async (req, res) => {
         const savings = shareholder.savings;
         const oldTotalAmount = savings.totalAmount;
 
-        // Check if savings have already been withdrawn
-        if (savings.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                savings: savings,
-                link: `/printsavingswithdrawal/${shareholder.id}`
-            };
-            return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
-        }
+        // // Check if savings have already been withdrawn
+        // if (savings.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         savings: savings,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`
+        //     };
+        //     return res.status(200).send({ status: 0, response, message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.` });
+        // }
 
         // Check if there's enough balance to withdraw
         if (amountToWithdraw > savings.totalAmount) {
@@ -1349,7 +1618,7 @@ exports.withdrawSavings = async (req, res) => {
             newAmount: savings.totalAmount,
             admin: adminId,
             type: "Savings",
-            withdrawalDate: Date.now()
+            withdrawalDate: date
         };
 
         const updatedupdatedHistory = await WithdrawalHistory.create([WithdrawSavings]);
@@ -1393,11 +1662,12 @@ exports.getShareholderFinancials = async (req, res) => {
         }
 
         // Get the savings data for the given year.
-        const savings = shareholder.savings ? shareholder.savings.totalAmount : null;
-        console.log(savings)
+        const savings = shareholder.savings ? shareholder.savings.totalAmount.toFixed(3) : null;
+        const savingsIncrease = shareholder.savings ? shareholder.savings.savingsIncrease.toFixed(3) : null;
+        // console.log(savings)
         // Find the specific share data for the given year.
-        const share = shareholder.share ? shareholder.share.totalShareAmount : null;
-        const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
+        const share = shareholder.share ? shareholder.share.totalShareAmount.toFixed(3) : null;
+        const shareValue = shareholder.share ? shareholder.share.totalAmount.toFixed(3) : null;
 
         console.log(shareholder.savings.amanat)
         // Prepare the response.
@@ -1406,6 +1676,7 @@ exports.getShareholderFinancials = async (req, res) => {
             sharesTotalAmount: share || null,
             shareValue: shareValue || null,
             amanat: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : null,
+            savingsIncrease: savingsIncrease || null
         };
 
         // Return the data to the client.
@@ -1423,13 +1694,79 @@ exports.getShareholderFinancials = async (req, res) => {
     }
 };
 
+exports.getShareholderAmanatReportExport = async (req, res) => {
+    try {
+        const { status, membershipStatus, format } = req.query;
+        let queryConditions = {};
 
+        // Construct query conditions
+        if (status) queryConditions.status = parseInt(status);
+        if (membershipStatus) queryConditions.membershipStatus = parseInt(membershipStatus);
+
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate({
+                path: 'savings',
+                populate: { path: 'amanat', model: 'Amanat' }
+            });
+
+        // Prepare an array to store the shareholder report data
+        const reportData = shareholders.map(shareholder => {
+            return {
+                membersCode: shareholder.membersCode,
+                fullName: `${shareholder.fName} ${shareholder.lName}`,
+                civilId: shareholder.civilId || 'N/A',
+                mobileNumber: shareholder.mobileNumber || 'N/A',
+                amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
+            };
+        });
+
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Shareholder Amanat Report');
+
+        // Add headers
+        worksheet.addRow([
+            'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'أمانات'
+        ]);
+
+        // Add data rows
+        reportData.forEach(record => {
+            worksheet.addRow([
+                record.membersCode,
+                record.fullName,
+                record.civilId,
+                record.mobileNumber,
+                record.amanatAmount
+            ]);
+        });
+
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
+            await workbook.xlsx.write(res);
+        }
+        res.write('\uFEFF');  // UTF-8 BOM
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.withdrawShares = async (req, res) => {
     try {
         const id = req.params.id;
         const userId = req.body.userId;
         const amountOfShares = req.body.amountOfShares;
         const amountToWithdraw = req.body.amountToWithdraw;
+        const date = new Date(req.body.date);
+
         console.log(req.body);
 
         const shareholder = await Shareholder.findById(id).populate('share');
@@ -1438,18 +1775,18 @@ exports.withdrawShares = async (req, res) => {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
         console.log(shareholder)
-        if (shareholder.share && shareholder.share.withdrawn) {
-            const response = {
-                shareholder: shareholder,
-                share: shareholder.share,
-                link: `/printsavingswithdrawal/${shareholder.id}`,
-            };
-            return res.status(200).send({
-                status: 0,
-                response,
-                message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.`,
-            });
-        }
+        // if (shareholder.share && shareholder.share.withdrawn) {
+        //     const response = {
+        //         shareholder: shareholder,
+        //         share: shareholder.share,
+        //         link: `/printsavingswithdrawal/${shareholder.id}`,
+        //     };
+        //     return res.status(200).send({
+        //         status: 0,
+        //         response,
+        //         message: `${shareholder.fName} ${shareholder.lName}'s savings have already been withdrawn.`,
+        //     });
+        // }
 
         const oldTotalAmount = shareholder.share ? shareholder.share.totalAmount : 0;
         const oldTotalShareAmount = shareholder.share ? shareholder.share.totalShareAmount : 0;
@@ -1509,7 +1846,7 @@ exports.withdrawShares = async (req, res) => {
             newShareAmount: shareholder.share.totalShareAmount,
             admin: userId,
             type: "Shares",
-            withdrawalDate: Date.now(),
+            withdrawalDate: date,
         };
 
         const updatedWithdrawalHistory = await WithdrawalHistory.create([WithdrawShares]);
@@ -1521,5 +1858,119 @@ exports.withdrawShares = async (req, res) => {
         });
     } catch (err) {
         res.status(400).send({ status: 4, message: err.message });
+    }
+};
+
+exports.getTransferLogReportExport = async (req, res) => {
+    try {
+        const { startDate, endDate, format } = req.query;
+        let queryConditions = {};
+
+        // Construct query conditions for date range
+        if (startDate && endDate) {
+            queryConditions.date = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+
+        // Retrieve all transfer logs from the database with populated fields
+        const transferLogs = await TransferLog.find(queryConditions)
+            .populate('shareholder')
+            .populate('fromSavings')
+            .populate('toAmanat')
+            .populate('admin');
+
+        // Prepare an array to store the transfer log report data
+        const reportData = transferLogs.map(log => {
+            const savingsTotal = log.fromSavings ? log.fromSavings.totalAmount : 0;
+            const amanatTotal = log.toAmanat ? log.toAmanat.amount : 0;
+
+            return {
+                membersCode: log.shareholder ? log.shareholder.membersCode : 'N/A',
+                fullName: log.shareholder ? `${log.shareholder.fName} ${log.shareholder.lName}` : 'N/A',
+                transferAmount: log.amount,
+                transferDate: log.date,
+                savingsTotalBeforeTransfer: savingsTotal + log.amount,
+                savingsTotalAfterTransfer: savingsTotal,
+                amanatTotalBeforeTransfer: amanatTotal - log.amount,
+                amanatTotalAfterTransfer: amanatTotal,
+                adminName: log.admin ? `${log.admin.fName} ${log.admin.lName}` : 'N/A'
+            };
+        });
+
+        // Prepare the workbook and worksheet
+        const workbook = new excel.Workbook();
+        const worksheet = workbook.addWorksheet('Transfer Log Report');
+
+        // Add headers
+        worksheet.addRow([
+            'رقم العضوية', 'الاسم', 'قيمة التحويل', 'تاريخ التحويل',
+            'إجمالي المدخرات قبل التحويل', 'إجمالي المدخرات بعد التحويل',
+            'إجمالي الأمانات قبل التحويل', 'إجمالي الأمانات بعد التحويل',
+            'اسم المدير'
+        ]);
+
+        // Add data rows
+        reportData.forEach(record => {
+            worksheet.addRow([
+                record.membersCode,
+                record.fullName,
+                record.transferAmount,
+                record.transferDate,
+                record.savingsTotalBeforeTransfer,
+                record.savingsTotalAfterTransfer,
+                record.amanatTotalBeforeTransfer,
+                record.amanatTotalAfterTransfer,
+                record.adminName
+            ]);
+        });
+
+        // Set content type and disposition based on format
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=transfer_log_report.csv');
+            await workbook.csv.write(res);
+        } else {
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename=transfer_log_report.xlsx');
+            await workbook.xlsx.write(res);
+        }
+        res.write('\uFEFF');  // UTF-8 BOM
+
+        res.end();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+exports.updateAllSavingsIncrease = async (req, res) => {
+    try {
+        // Fetch all savings records
+        const allSavings = await Saving.find({}).populate('deposits');
+
+        let updatedCount = 0;
+
+        for (const savings of allSavings) {
+            let savingsIncrease = 0;
+
+            if (savings.deposits && savings.deposits.length > 0) {
+                savings.deposits.forEach(deposit => {
+                    savingsIncrease += deposit.currentAmount - deposit.initialAmount;
+                });
+            }
+
+            // Update the savings record with the calculated savingsIncrease
+            await Saving.findByIdAndUpdate(savings._id, { savingsIncrease });
+            updatedCount++;
+        }
+
+        res.json({
+            message: `Successfully updated savingsIncrease for ${updatedCount} savings records.`,
+            updatedCount
+        });
+    } catch (error) {
+        console.error('Error updating savingsIncrease:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };

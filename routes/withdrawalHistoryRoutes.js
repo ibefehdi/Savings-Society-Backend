@@ -6,5 +6,6 @@ const withdrawalHistoryController = require('../controllers/WithdrawalHistoryCon
 
 // Route to get all deposit histories
 router.get('/withdrawalhistory', withdrawalHistoryController.getAllWithdrawalHistory);
+router.get('/withdrawal-history-report', withdrawalHistoryController.getWithdrawalHistoryReportExport);
 router.get('/TransferHistory', withdrawalHistoryController.getAllTransferLog);
 module.exports = router;

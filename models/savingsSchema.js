@@ -16,6 +16,7 @@ const savingsSchema = new mongoose.Schema({
         lastUpdateDate: { type: Date },
     }],
     totalAmount: { type: Number, default: 0 },
+    savingsIncrease: { type: Number, default: 0 },
     withdrawn: { type: Boolean },
     maxReached: { type: Boolean },
     amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
@@ -202,6 +203,60 @@ const savingsSchema = new mongoose.Schema({
 //     await this.save();
 //     return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
 // };
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
+
+//     if (this.withdrawn) {
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
+
+//     const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+//     if (!shareConfig) {
+//         console.log(`No savings configuration found for this year.`);
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
+
+//     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+
+//     for (const deposit of this.deposits) {
+//         let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
+
+//         // Set the last update date to the first day of the next month after the deposit date
+//         lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
+
+//         const timeSinceLastUpdate = now - lastUpdateDate;
+//         const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+
+//         if (yearFractionSinceLastUpdate > 0) {
+//             let calculatedAmount = deposit.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+
+//             if (calculatedAmount > 1000) {
+//                 const excessAmount = calculatedAmount - 1000;
+//                 calculatedAmount = 1000;
+
+//                 let amanat;
+//                 if (this.amanat) {
+//                     amanat = await Amanat.findById(this.amanat);
+//                 } else {
+//                     amanat = new Amanat({ amount: 0, date: new Date() });
+//                 }
+
+//                 amanat.amount += excessAmount;
+//                 await amanat.save();
+
+//                 this.amanat = amanat._id;
+//             }
+
+//             deposit.currentAmount = calculatedAmount;
+//             deposit.lastUpdateDate = now;
+//         }
+//     }
+
+//     this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+
+//     await this.save();
+//     return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+// };
 savingsSchema.methods.calculateCurrentPrice = async function () {
     const now = new Date();
 
@@ -228,6 +283,9 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
 
         if (yearFractionSinceLastUpdate > 0) {
             let calculatedAmount = deposit.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
+            let interestAmount = calculatedAmount - deposit.currentAmount;
+
+            this.savingsIncrease += interestAmount;
 
             if (calculatedAmount > 1000) {
                 const excessAmount = calculatedAmount - 1000;
@@ -246,7 +304,6 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
                 this.amanat = amanat._id;
             }
 
-            deposit.currentAmount = calculatedAmount;
             deposit.lastUpdateDate = now;
         }
     }
@@ -254,7 +311,9 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
 
     await this.save();
-    return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+    console.log("This is what it returns", (this.totalAmount + this.savingsIncrease).toFixed(3))
+    console.log("Savings Increase: " + this.savingsIncrease.toFixed(3))
+    // return this.totalAmount + this.savingsIncrease;
+    return this.savingsIncrease.toFixed(3)
 };
-
 module.exports = mongoose.model('Savings', savingsSchema);

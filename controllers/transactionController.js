@@ -36,10 +36,10 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        const { page = 1, resultsPerPage = 10, type } = req.query;
+        const { page = 1, resultsPerPage = 10, type, transactionType } = req.query;
         const skip = (page - 1) * resultsPerPage;
         console.log(type)
-        const transactions = await Transaction.find({ transactionFrom: type }).populate('buildingId').populate('flatId').populate('bookingId').skip(skip)
+        const transactions = await Transaction.find({ transactionFrom: type, type: transactionType }).populate('buildingId').populate('flatId').populate('bookingId').skip(skip)
             .limit(resultsPerPage).exec();
         const count = await Transaction.countDocuments({ transactionFrom: type });
         console.log(transactions);
