@@ -15,4 +15,9 @@ router.get('/voucher-report', voucherController.getVoucherReportExport);
 router.post('/voucherpaid/:id', voucherController.payVoucher)
 router.post('/createvoucher', voucherController.createVoucher)
 
+router.delete('/deletevoucher/:id', voucherController.deleteVoucher)
+
+
+router.put('/updatevoucher/:id', voucherController.editVoucher);
+
 module.exports = router;

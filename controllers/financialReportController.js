@@ -164,7 +164,7 @@ exports.getShareholderReportExport = async (req, res) => {
         if (fName) queryConditions.fName = fName;
         if (lName) queryConditions.lName = lName;
         if (civilId) queryConditions.civilId = civilId;
-        if (status) queryConditions.status = status;
+        // if (status) queryConditions.status = status;
         if (gender) queryConditions.gender = gender;
         if (area) queryConditions.Area = area;
 

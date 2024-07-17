@@ -169,37 +169,50 @@ async function createVouchers() {
             // Check if a voucher has already been created for the current month
             const existingVoucher = await Voucher.findOne({
                 buildingId: contract.flatId.buildingId,
-                flatId: contract.flatId,
-                tenantId: contract.tenantId,
+                flatId: contract.flatId._id,
+                tenantId: contract.tenantId._id,
                 pendingDate: {
                     $gte: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
                     $lt: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
                 },
-            }).populate('flatId');
-            console.log(existingVoucher)
+            });
+
             if (!existingVoucher) {
                 // Create a new voucher if one doesn't exist for the current month
                 const voucher = new Voucher({
                     buildingId: contract.flatId.buildingId,
-                    flatId: contract.flatId,
-                    tenantId: contract.tenantId,
+                    flatId: contract.flatId._id,
+                    tenantId: contract.tenantId._id,
                     amount: contract.rentAmount,
                     pendingDate: fiveDaysLater,
                     status: 'Pending',
                 });
 
                 vouchers.push(voucher);
-                console.log(voucher);
+                console.log('New voucher created:', voucher);
+            } else {
+                console.log('Voucher already exists for:', {
+                    buildingId: contract.flatId.buildingId,
+                    flatId: contract.flatId._id,
+                    tenantId: contract.tenantId._id,
+                    month: currentDate.getMonth() + 1,
+                    year: currentDate.getFullYear()
+                });
             }
         }
 
         // Save the vouchers to the database
-        await Voucher.insertMany(vouchers);
-        console.log(`Created ${vouchers.length} vouchers.`);
+        if (vouchers.length > 0) {
+            await Voucher.insertMany(vouchers);
+            console.log(`Created ${vouchers.length} vouchers.`);
+        } else {
+            console.log('No new vouchers created.');
+        }
     } catch (error) {
         console.error('Error creating vouchers:', error);
     }
 }
+
 schedule.scheduleJob('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);

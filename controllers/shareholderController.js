@@ -329,6 +329,7 @@ exports.getAllShareholdersSavingsFormatted = async (req, res) => {
                 'رقم الهاتف',
                 'العنوان',
                 'مدخرات',
+                'فائدة المدخرات',
                 'أمانات'
             ]
         });
@@ -358,6 +359,7 @@ exports.getAllShareholdersSavingsFormatted = async (req, res) => {
                 'رقم الهاتف': shareholder.phoneNumber || 'N/A',
                 'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
                 'مدخرات': (savingsCurrentAmount).toFixed(3),
+                'فائدة المدخرات': shareholder.savings.savingsIncrease.toFixed(3),
                 'أمانات': amanatAmount.toFixed(3)
             };
 
@@ -431,6 +433,8 @@ exports.getShareholderByMembersCode = async (req, res) => {
 };
 exports.createShareholder = async (req, res) => {
     try {
+        const lastMember = await Shareholder.findOne().sort({ membersCode: -1 });
+        const newMembersCode = lastMember ? Number(lastMember.membersCode) + 1 : 1;
         // Sanitize and create address
         const sanitizedAddress = {
             block: sanitizeInput(req.body.block),
@@ -479,7 +483,7 @@ exports.createShareholder = async (req, res) => {
             lName: sanitizeInput(req.body.lName),
             arabLName: sanitizeInput(req.body.arabLName),
             fullName: sanitizeInput(req.body.fullName),
-            membersCode: req.body.membersCode ? req.body.membersCode : undefined,
+            membersCode: req.body.membersCode ? req.body.membersCode : newMembersCode,
             DOB: new Date(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             bankName: sanitizeInput(req.body.bankName),
@@ -967,7 +971,7 @@ exports.editShareholder = async (req, res) => {
         shareholder.Country = sanitizeInput(req.body.country) || shareholder.Country;
         shareholder.arabLName = sanitizeInput(req.body.arabLName) || shareholder.arabLName;
         shareholder.arabFName = sanitizeInput(req.body.arabFName) || shareholder.arabFName;
-        shareholder.quitDate = new Date(req.body.quitDate) || shareholder.quitDate;
+        shareholder.quitDate = req.body.quitDate ? new Date(req.body.quitDate) : shareholder.quitDate;
         shareholder.gender = sanitizeInput(req.body.gender) || shareholder.gender;
         shareholder.lastEditedBy.push(userId);
         // Update the address associated with the shareholder

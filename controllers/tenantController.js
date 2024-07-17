@@ -47,3 +47,41 @@ exports.getTenantByCivilId = async (req, res) => {
         })
     }
 }
+
+exports.editTenant = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const tenant = await Tenant.findById(id);
+        if (!tenant) {
+            return res.status(404).json({ message: "Tenant not found" });
+        }
+
+        const { name, contactNumber, flatId, civilId } = req.body;
+
+        if (name) tenant.name = name;
+        if (contactNumber) tenant.contactNumber = contactNumber; // Fixed this line
+        if (flatId) tenant.flatId = flatId;
+        if (civilId) tenant.civilId = civilId;
+
+        // Handle civilIdDocument upload
+        if (req.files && req.files.civilIdDocument) {
+            const file = req.files.civilIdDocument[0];
+            tenant.civilIdDocument = {
+                path: file.path,
+                fileType: file.mimetype.startsWith('image/') ? 'image' : 'pdf'
+            };
+        }
+
+        await tenant.save(); // await the save operation
+
+        res.status(200).json({
+            message: "Tenant Updated Successfully",
+            tenant
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "An Error Occurred While Updating Tenant",
+            error: error.message
+        });
+    }
+};

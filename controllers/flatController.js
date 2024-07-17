@@ -375,6 +375,7 @@ exports.removeTenant = async (req, res) => {
             // Update the contract as expired
             contract.flatId = null;
             contract.expired = true;
+            contract.rentAmount = null;
             await contract.save();
         }
 

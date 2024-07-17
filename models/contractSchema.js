@@ -21,7 +21,6 @@ const contractSchema = new mongoose.Schema({
     },
     rentAmount: {
         type: Number,
-        required: true,
     },
     collectionDay: {
         type: Number,

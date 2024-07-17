@@ -61,7 +61,94 @@ exports.getAllVouchers = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+exports.editVoucher = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status } = req.body;
 
+        const existingVoucher = await Voucher.findById(id);
+        if (!existingVoucher) {
+            return res.status(404).json({ error: 'Voucher not found' });
+        }
+
+        const voucherData = {
+            buildingId,
+            flatId,
+            tenantId,
+            amount,
+            status,
+        };
+
+        // Status logic
+        if (status === 'Paid') {
+            voucherData.paidDate = paidDate;
+            voucherData.pendingDate = null;
+        } else if (status === 'Pending') {
+            voucherData.pendingDate = pendingDate;
+            voucherData.paidDate = null;
+        } else if (status === 'Cancelled') {
+            voucherData.pendingDate = null;
+            voucherData.paidDate = null;
+        }
+
+        const updatedVoucher = await Voucher.findByIdAndUpdate(id, voucherData, { new: true });
+
+        // Fetch tenant information
+        const tenant = await Tenant.findById(tenantId);
+
+        // Handle status transitions
+        if (existingVoucher.status !== status) {
+            switch (status) {
+                case 'Paid':
+                    if (existingVoucher.status === 'Pending') {
+                        // Create a new transaction for Pending to Paid
+                        await Transaction.create({
+                            buildingId,
+                            flatId,
+                            amount,
+                            date: paidDate,
+                            type: "Income",
+                            transactionFrom: flatId ? "Flat" : "Hall",
+                            description: `Voucher Paid By ${tenant.name}`,
+                        });
+                    } else if (existingVoucher.status === 'Cancelled') {
+                        // Create a new transaction for Cancelled to Paid
+                        await Transaction.create({
+                            buildingId,
+                            flatId,
+                            amount,
+                            date: paidDate,
+                            type: "Income",
+                            transactionFrom: flatId ? "Flat" : "Hall",
+                            description: `Cancelled Voucher Paid By ${tenant.name}`,
+                        });
+                    }
+                    break;
+
+                case 'Pending':
+                    if (existingVoucher.status === 'Paid') {
+                        // Delete the associated transaction for Paid to Pending
+                        await Transaction.deleteOne({
+                            buildingId,
+                            flatId,
+                            amount,
+                            type: "Income",
+                            transactionFrom: flatId ? "Flat" : "Hall",
+                            description: { $regex: new RegExp(`Voucher Paid By ${tenant.name}`) }
+                        });
+                    }
+                    break;
+
+
+            }
+        }
+
+        res.status(200).json(updatedVoucher);
+    } catch (error) {
+        console.error('Error editing voucher:', error);
+        res.status(500).json({ error: 'An error occurred while editing the voucher' });
+    }
+};
 exports.getPendingVouchers = async (req, res) => {
     try {
         const pendingVouchers = await Voucher.find({ status: 'Pending' }).populate({
@@ -143,6 +230,21 @@ exports.createVoucher = async (req, res) => {
     try {
         const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status } = req.body;
 
+        // Check if a voucher already exists for the same tenant, flat, and month
+        const existingVoucher = await Voucher.findOne({
+            buildingId,
+            flatId,
+            tenantId,
+            $or: [
+                { pendingDate: { $gte: new Date(pendingDate).setDate(1), $lt: new Date(pendingDate).setMonth(new Date(pendingDate).getMonth() + 1) } },
+                { paidDate: { $gte: new Date(paidDate).setDate(1), $lt: new Date(paidDate).setMonth(new Date(paidDate).getMonth() + 1) } }
+            ]
+        });
+
+        if (existingVoucher) {
+            return res.status(400).json({ error: 'A voucher already exists for this tenant, flat, and month' });
+        }
+
         const voucherData = {
             buildingId,
             flatId,
@@ -183,6 +285,18 @@ exports.createVoucher = async (req, res) => {
     }
 };
 
+exports.deleteVoucher = async (req, res) => {
+    try {
+        const id = req.params.id;
+        await Voucher.deleteOne({ _id: id });
+        res.status(200).json({ message: 'Voucher deleted successfully' });
+
+    }
+    catch (error) {
+        console.error('Error creating voucher:', error);
+        res.status(500).json({ error: 'An error occurred while creating the voucher' });
+    }
+}
 
 exports.getVoucherReportExport = async (req, res) => {
     try {
