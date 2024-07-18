@@ -1823,7 +1823,10 @@ exports.getShareholderAmanatReportExport = async (req, res) => {
         if (format === 'csv') {
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.csv');
+            res.write('\uFEFF');  // UTF-8 BOM
+
             await workbook.csv.write(res);
+
         } else {
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', 'attachment; filename=shareholder_amanat_report.xlsx');
