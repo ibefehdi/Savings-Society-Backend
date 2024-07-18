@@ -1060,7 +1060,6 @@ exports.addSavingsToShareholder = async (req, res) => {
             return res.status(400).send({ status: 2, message: "Total Savings cannot be larger than 1000", messageArabic: "لا يمكن أن يكون إجمالي المدخرات أكبر من 1000" });
         }
 
-        // Rest of the function remains the same...
         let updatedSavings;
         if (!shareholder.savings || !shareholder.savings._id) {
             // If no existing savings are linked, create new savings data

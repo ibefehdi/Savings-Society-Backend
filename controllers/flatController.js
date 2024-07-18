@@ -116,6 +116,145 @@ exports.createFlat = async (req, res) => {
         }
     }
 };
+exports.editFlat = async (req, res) => {
+    try {
+        const flatId = req.params.id;
+        const {
+            flatNumber,
+            tenantName,
+            tenantContactNumber,
+            tenantCivilId,
+            startDate,
+            endDate,
+            rentAmount,
+            collectionDay,
+            floorNumber
+        } = req.body;
+
+        // Find and update the flat
+        let flat = await Flat.findById(flatId).populate('tenant')
+            .populate('buildingId');
+
+        if (!flat) {
+            return res.status(404).json({ error: 'Flat not found' });
+        }
+
+        flat.flatNumber = flatNumber || flat.flatNumber;
+        flat.floorNumber = floorNumber || flat.floorNumber;
+
+        // Handle tenant information
+        if (tenantName && tenantContactNumber) {
+            let civilIdDocument = undefined;
+            if (req.files && req.files['civilIdDocument']) {
+                const file = req.files['civilIdDocument'][0];
+                const fileExtension = path.extname(file.originalname);
+                const newFileName = `${tenantCivilId}${fileExtension}`;
+                const newPath = path.join(path.dirname(file.path), newFileName);
+
+                fs.renameSync(file.path, newPath);
+
+                const fileUrl = `${req.protocol}://${req.get('host')}/uploads/civilIDs/${newFileName}`;
+
+                civilIdDocument = {
+                    path: fileUrl,
+                    fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+                };
+            }
+
+            if (flat.tenant) {
+                // Update existing tenant
+                await Tenant.findByIdAndUpdate(flat.tenant, {
+                    name: tenantName,
+                    contactNumber: tenantContactNumber,
+                    civilId: tenantCivilId,
+                    civilIdDocument: civilIdDocument || flat.tenant.civilIdDocument
+                });
+            } else {
+                // Create new tenant
+                const newTenant = await Tenant.create({
+                    name: tenantName,
+                    contactNumber: tenantContactNumber,
+                    civilId: tenantCivilId,
+                    flatId: flat._id,
+                    civilIdDocument: civilIdDocument
+                });
+                flat.tenant = newTenant._id;
+                flat.vacant = false;
+            }
+        } else if (flat.tenant && (!tenantName || !tenantContactNumber)) {
+            // Remove tenant if tenant info is cleared
+            await Tenant.findByIdAndRemove(flat.tenant);
+            flat.tenant = null;
+            flat.vacant = true;
+        }
+
+        // Handle contract information
+        if (startDate && endDate && rentAmount && collectionDay) {
+            let contractDocument = undefined;
+            if (req.files && req.files['contractDocument']) {
+                const file = req.files['contractDocument'][0];
+                const fileExtension = path.extname(file.originalname);
+                const newFileName = `contract_${flat._id}${fileExtension}`;
+                const newPath = path.join(path.dirname(file.path), newFileName);
+
+                fs.renameSync(file.path, newPath);
+
+                const fileUrl = `${req.protocol}://${req.get('host')}/uploads/contracts/${newFileName}`;
+
+                contractDocument = {
+                    path: fileUrl,
+                    fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
+                };
+            }
+
+            // Find existing contract or create new one
+            let contract = await Contract.findOne({ flatId: flat._id, expired: false });
+            if (contract) {
+                // Update existing contract
+                contract.startDate = startDate;
+                contract.endDate = endDate;
+                contract.rentAmount = rentAmount === undefined ? null : rentAmount;
+                contract.collectionDay = collectionDay;
+                contract.contractDocument = contractDocument || contract.contractDocument;
+                await contract.save();
+            } else {
+                // Create new contract
+                contract = await Contract.create({
+                    flatId: flat._id,
+                    tenantId: flat.tenant,
+                    startDate: startDate,
+                    endDate: endDate,
+                    rentAmount: rentAmount,
+                    collectionDay: collectionDay,
+                    expired: false,
+                    contractDocument: contractDocument
+                });
+            }
+        }
+
+        await flat.save();
+
+        const populatedFlat = await Flat.findById(flatId)
+            .populate('tenant')
+            .populate('buildingId');
+
+        const contract = await Contract.findOne({ flatId: flatId, expired: false });
+
+        res.status(200).json({
+            flat: populatedFlat,
+            building: populatedFlat.buildingId,
+            tenant: populatedFlat.tenant,
+            contract: contract,
+        });
+    } catch (err) {
+        console.error(err);
+        if (err.name === 'ValidationError') {
+            res.status(400).json({ error: err.message });
+        } else {
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
+    }
+};
 exports.assignTenantToFlat = async (req, res) => {
     try {
         const flatId = req.params.id;

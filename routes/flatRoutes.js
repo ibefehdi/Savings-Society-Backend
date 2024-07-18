@@ -41,5 +41,10 @@ router.put('/addtenant/:id', upload.fields([
     { name: 'contractDocument', maxCount: 1 }
 ]), flatController.assignTenantToFlat);
 
+router.put('/flat/:id', upload.fields([
+    { name: 'civilIdDocument', maxCount: 1 },
+    { name: 'contractDocument', maxCount: 1 }
+]), flatController.editFlat);
+
 router.put('/replacetenant/:id', flatController.replaceTenant);
 module.exports = router;
