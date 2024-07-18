@@ -155,17 +155,17 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         const csvStringifier = stringify({
             header: true,
             columns: [
-                'Serial',
-                'Full Name',
-                'Date of Birth',
-                'Civil ID',
-                'Join Date',
-                'IBAN',
-                'Phone Number',
-                'Address',
-                'Share Value',
-                'Share Quantity',
-                'Savings'
+                'رقم العضوية',
+                'اسم المساهم',
+                'تاريخ الميلاد',
+                'رقم مدني',
+                'تاريخ الانتساب',
+                'ايبان البنك',
+                'رقم التليفون',
+                'العنوان',
+                'عدد الاسهم',
+                'قيم الاسهم',
+                'قيمة المدخرات'
             ]
         });
 
@@ -196,7 +196,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'Civil ID': shareholder.civilId || 'NULL',
                 'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'IBAN': shareholder.ibanNumber || '0',
-                'Phone Number': shareholder.phoneNumber || 'N/A',
+                'Phone Number': shareholder.mobileNumber || 'N/A',
                 'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
                 'Share Value': shareholder.share.totalAmount.toFixed(0),
                 'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
