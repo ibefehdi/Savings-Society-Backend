@@ -447,35 +447,47 @@ exports.createShareholder = async (req, res) => {
             city: sanitizeInput(req.body.city),
         };
         const address = await Address.create(sanitizedAddress);
-
-        // Sanitize and create share
-        const shareAmount = sanitizeInput(req.body.shareAmount);
-        const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
-        const sanitizedShare = {
-            amount: shareAmount,
-            initialAmount: shareInitialPrice,
-            currentAmount: shareInitialPrice,
-            withdrawn: false,
-            date: new Date(req.body.joinDate),
-            year: new Date(req.body.joinDate).getFullYear(),
-        };
-        const share = await Share.create(sanitizedShare);
-
-        // Prepare admin IDs with timestamps
         const adminId = req.body.adminId;
         const adminIdWithTimestamp = adminId.map(admin => ({
             ...admin,
             timestamp: new Date()
         }));
         const adminIdWithoutTimestamp = adminId[0]?.admin;
+        // Sanitize and create share
+        const shareAmount = sanitizeInput(req.body.shareAmount);
+        const shareInitialPrice = sanitizeInput(req.body.shareInitialPrice);
+        const sanitizedShare = {
+            purchases: [{
+                amount: shareAmount,
+                initialAmount: shareInitialPrice,
+                currentAmount: shareInitialPrice,
+                date: new Date(req.body.joinDate),
+                lastUpdateDate: new Date()
+            }],
+            totalAmount: shareInitialPrice,
+            totalShareAmount: shareAmount,
+            year: new Date(req.body.joinDate).getFullYear(),
+            adminId: adminIdWithTimestamp,
+            withdrawn: false
+        };
+        const share = await Share.create(sanitizedShare);
+
+        // Prepare admin IDs with timestamps
+
         const savingsInitialPrice = req.body.savingsInitialPrice ? sanitizeInput(req.body.savingsInitialPrice) : 0;
         const sanitizedSavings = {
-            initialAmount: savingsInitialPrice,
-            currentAmount: savingsInitialPrice,
+            deposits: [{
+                initialAmount: savingsInitialPrice,
+                currentAmount: savingsInitialPrice,
+                date: new Date(req.body.joinDate),
+                lastUpdateDate: new Date()
+            }],
+            totalAmount: savingsInitialPrice,
+            savingsIncrease: 0,
             withdrawn: false,
+            maxReached: false,
             adminId: adminIdWithTimestamp,
-            date: new Date(req.body.joinDate),
-            year: new Date(req.body.joinDate).getFullYear(),
+            year: new Date(req.body.joinDate).getFullYear().toString(),
         };
         const savings = await Saving.create(sanitizedSavings);
 
