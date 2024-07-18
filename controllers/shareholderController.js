@@ -152,20 +152,19 @@ exports.getAllShareholdersFormatted = async (req, res) => {
             .populate('share')
             .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'رقم العضوية',
-                'اسم المساهم',
-                'تاريخ الميلاد',
-                'رقم مدني',
-                'تاريخ الانتساب',
-                'ايبان البنك',
-                'رقم التليفون',
-                'العنوان',
-                'عدد الاسهم',
-                'قيم الاسهم',
-                'قيمة المدخرات'
+        const csvStringifier = createCsvStringifier({
+            header: [
+                { id: 'رقم العضوية', title: 'رقم العضوية' },
+                { id: 'اسم المساهم', title: 'اسم المساهم' },
+                { id: 'تاريخ الميلاد', title: 'تاريخ الميلاد' },
+                { id: 'رقم مدني', title: 'رقم مدني' },
+                { id: 'تاريخ الانتساب', title: 'تاريخ الانتساب' },
+                { id: 'ايبان البنك', title: 'ايبان البنك' },
+                { id: 'رقم التليفون', title: 'رقم التليفون' },
+                { id: 'العنوان', title: 'العنوان' },
+                { id: 'عدد الاسهم', title: 'عدد الاسهم' },
+                { id: 'قيم الاسهم', title: 'قيم الاسهم' },
+                { id: 'قيمة المدخرات', title: 'قيمة المدخرات' }
             ]
         });
 
@@ -190,23 +189,24 @@ exports.getAllShareholdersFormatted = async (req, res) => {
             }
 
             const row = {
-                'Serial': shareholder.membersCode || (skip + index + 1),
-                'Full Name': shareholder.fName,
-                'Date of Birth': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-                'Civil ID': shareholder.civilId || 'NULL',
-                'Join Date': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
-                'IBAN': shareholder.ibanNumber || '0',
-                'Phone Number': shareholder.mobileNumber || 'N/A',
-                'Address': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'Share Value': shareholder.share.totalAmount.toFixed(0),
-                'Share Quantity': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
-                'Savings': (savingsCurrentAmount).toFixed(3)
+                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'اسم المساهم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'رقم مدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'ايبان البنك': shareholder.ibanNumber || '0',
+                'رقم التليفون': shareholder.mobileNumber || 'N/A',
+                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
+                'قيم الاسهم': shareCurrentAmount.toFixed(0),
+                'قيمة المدخرات': savingsCurrentAmount.toFixed(3)
             };
 
             csvStringifier.write(row);
         });
 
         csvStringifier.end();
+
 
     } catch (err) {
         res.status(500).send({ message: err.message });
