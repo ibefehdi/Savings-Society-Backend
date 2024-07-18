@@ -433,20 +433,11 @@ exports.getShareholderByMembersCode = async (req, res) => {
 };
 exports.createShareholder = async (req, res) => {
     try {
-        let newMembersCode;
-        if (req.body.membersCode) {
-            newMembersCode = req.body.membersCode;
-        } else {
-            const lastMember = await Shareholder.findOne().sort({ membersCode: -1 });
-            newMembersCode = lastMember ? Number(lastMember.membersCode) + 1 : 1000;
-        }
-
-        // Check if the membersCode already exists
-        const existingMember = await Shareholder.findOne({ membersCode: newMembersCode });
-        if (existingMember) {
-            return res.status(400).send({ status: 1, message: "Members Code already exists." });
-        }
-
+        const lastMember = await Shareholder.findOne({}, { membersCode: 1 })
+            .sort({ membersCode: -1 })
+            .collation({ locale: "en_US", numericOrdering: true });
+        console.log(lastMember)
+        const newMembersCode = lastMember ? Number(lastMember.membersCode) + 1 : 1;
         // Sanitize and create address
         const sanitizedAddress = {
             block: sanitizeInput(req.body.block),
@@ -495,7 +486,7 @@ exports.createShareholder = async (req, res) => {
             lName: sanitizeInput(req.body.lName),
             arabLName: sanitizeInput(req.body.arabLName),
             fullName: sanitizeInput(req.body.fullName),
-            membersCode: newMembersCode,
+            membersCode: req.body.membersCode ? req.body.membersCode : newMembersCode,
             DOB: new Date(req.body.dob),
             civilId: sanitizeInput(req.body.civilId),
             bankName: sanitizeInput(req.body.bankName),
