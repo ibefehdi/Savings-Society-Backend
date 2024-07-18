@@ -147,7 +147,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
 
         const shareholders = await Shareholder.find(queryConditions)
 
-            .select('fName DOB civilId joinDate ibanNumber phoneNumber address share savings membersCode')
+            .select('fName DOB civilId joinDate ibanNumber mobileNumber address share savings membersCode')
             .populate('address')
             .populate('share')
             .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
@@ -188,6 +188,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                     amanatAmount = shareholder.savings.amanat.amount || 0;
                 }
             }
+            console.log("Shareholder mobile number:", shareholder.mobileNumber); // Add this line for debugging
 
             const row = {
                 'رقم العضوية': shareholder.membersCode || (skip + index + 1),
@@ -196,7 +197,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'رقم مدني': shareholder.civilId || 'NULL',
                 'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'ايبان البنك': shareholder.ibanNumber || '0',
-                'رقم التليفون': shareholder.mobileNumber || 'N/A',
+                'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
                 'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
                 'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
                 'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
@@ -1379,53 +1380,107 @@ exports.addToSavings = async (req, res) => {
 
         const savings = shareholder.savings;
 
-        // Update totalAmount
-        savings.totalAmount += amountToAdd;
-        savings.savingsIncrease -= amountToAdd;
-        // Create new deposit
-        const newDeposit = {
-            initialAmount: amountToAdd,
-            currentAmount: amountToAdd,
-            date: date,
-            lastUpdateDate: date
-        };
+        // Check if adding the amount would make the total exceed 1000
+        if (savings.totalAmount + amountToAdd > 1000) {
+            // Move to Amanat instead
+            return await moveToAmanat(shareholder, savings, amountToAdd, userId, date, res);
+        } else {
+            // Update totalAmount
+            savings.totalAmount += amountToAdd;
+            savings.savingsIncrease -= amountToAdd;
+            // Create new deposit
+            const newDeposit = {
+                initialAmount: amountToAdd,
+                currentAmount: amountToAdd,
+                date: date,
+                lastUpdateDate: date
+            };
 
-        savings.deposits.push(newDeposit);
+            savings.deposits.push(newDeposit);
 
-        // Save the updated savings
-        await savings.save();
+            // Save the updated savings
+            await savings.save();
 
-        // Update the shareholder's lastEditedBy
-        shareholder.lastEditedBy.push(userId);
-        await shareholder.save();
+            // Update the shareholder's lastEditedBy
+            shareholder.lastEditedBy.push(userId);
+            await shareholder.save();
 
-        // Create a deposit log
-        const depositLog = new DepositHistory({
-            shareholder: shareholder._id,
-            savings: savings._id,
-            amount: amountToAdd,
-            date: date,
-            admin: userId
-        });
-        await depositLog.save();
+            // Create a deposit log
+            const depositLog = new DepositHistory({
+                shareholder: shareholder._id,
+                savings: savings._id,
+                amount: amountToAdd,
+                date: date,
+                admin: userId
+            });
+            await depositLog.save();
 
-        const response = {
-            shareholder: shareholder,
-            savings: savings,
-            newDeposit: newDeposit,
-            amountAdded: amountToAdd
-        };
+            const response = {
+                shareholder: shareholder,
+                savings: savings,
+                newDeposit: newDeposit,
+                amountAdded: amountToAdd
+            };
 
-        res.status(200).send({
-            status: 0,
-            response,
-            message: `${shareholder.fName} ${shareholder.lName} has added ${amountToAdd} to their Savings.`
-        });
+            res.status(200).send({
+                status: 0,
+                response,
+                message: `${shareholder.fName} ${shareholder.lName} has added ${amountToAdd} to their Savings.`
+            });
+        }
 
     } catch (err) {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+
+async function moveToAmanat(shareholder, savings, amountToMove, userId, date, res) {
+    const year = new Date().getFullYear().toString();
+
+    // Create or update Amanat
+    let amanat = savings.amanat;
+    if (!amanat) {
+        amanat = new Amanat({
+            amount: amountToMove,
+            withdrawn: false,
+            date: date,
+            year: year
+        });
+    } else {
+        amanat.amount += amountToMove;
+        amanat.year = year;
+    }
+    await amanat.save();
+
+    // Update the shareholder's amanat reference
+    shareholder.savings.amanat = amanat._id;
+    shareholder.lastEditedBy.push(userId);
+    await shareholder.save();
+
+    // Create a transfer log
+    const transferLog = new TransferLog({
+        shareholder: shareholder._id,
+        fromSavings: savings._id,
+        toAmanat: amanat._id,
+        amount: amountToMove,
+        date: date,
+        admin: userId
+    });
+    await transferLog.save();
+
+    const response = {
+        shareholder: shareholder,
+        savings: savings,
+        amanat: amanat,
+        amountMoved: amountToMove
+    };
+
+    res.status(200).send({
+        status: 0,
+        response,
+        message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} to Amanat as the total would exceed 1000.`
+    });
+}
 exports.withdrawAmanat = async (req, res) => {
     try {
         const id = req.params.id;
