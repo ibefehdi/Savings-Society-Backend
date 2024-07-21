@@ -130,7 +130,7 @@ exports.editFlat = async (req, res) => {
             collectionDay,
             floorNumber
         } = req.body;
-
+        console.log(req.body)
         // Find and update the flat
         let flat = await Flat.findById(flatId).populate('tenant')
             .populate('buildingId');
@@ -189,7 +189,7 @@ exports.editFlat = async (req, res) => {
         }
 
         // Handle contract information
-        if (startDate && endDate && rentAmount && collectionDay) {
+        if (startDate || endDate || rentAmount || collectionDay) {
             let contractDocument = undefined;
             if (req.files && req.files['contractDocument']) {
                 const file = req.files['contractDocument'][0];
@@ -208,13 +208,27 @@ exports.editFlat = async (req, res) => {
             }
 
             // Find existing contract or create new one
-            let contract = await Contract.findOne({ flatId: flat._id, expired: false });
+            let contract = await Contract.findOne({ flatId: flat._id });
+
             if (contract) {
                 // Update existing contract
                 contract.startDate = startDate;
                 contract.endDate = endDate;
                 contract.rentAmount = rentAmount === undefined ? null : rentAmount;
                 contract.collectionDay = collectionDay;
+
+                // Normalize dates to ensure correct comparison (optional)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Set current date to midnight
+                const normalizedEndDate = new Date(endDate);
+                normalizedEndDate.setHours(0, 0, 0, 0); // Set end date to midnight
+
+                if (normalizedEndDate >= today) {
+                    contract.expired = false;
+                } else {
+                    contract.expired = true;
+                }
+
                 contract.contractDocument = contractDocument || contract.contractDocument;
                 await contract.save();
             } else {

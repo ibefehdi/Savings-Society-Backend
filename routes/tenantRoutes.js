@@ -22,8 +22,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 router.get('/tenants', tenantController.getAllTenants)
+router.get('/active_tenants', tenantController.getAllActiveTenants)
 router.post('/tenantsbycivilid', tenantController.getTenantByCivilId)
+
 router.put(`/editTenant/:id`, upload.fields([
     { name: 'civilIdDocument', maxCount: 1 },
 ]), tenantController.editTenant);
+
+router.delete('/deleteTenant/:tenantId', tenantController.deactivateTenant)
 module.exports = router;

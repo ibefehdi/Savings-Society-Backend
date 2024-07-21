@@ -32,7 +32,35 @@ exports.getAllTenants = async (req, res) => {
             error: error.message,
         });
     }
+
 };
+exports.getAllActiveTenants = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+        const activeTenants = await Tenant.find({
+            $or: [
+                { active: true },
+                { active: { $exists: false } },
+                { active: null }
+            ]
+        })
+            .populate('flatId').skip(skip)
+            .limit(resultsPerPage)
+            .lean()
+            .exec();
+        const count = await Tenant.countDocuments({ active: true });
+        res.status(200).json({
+            data: activeTenants,
+            count: count,
+            metadata: { total: count },
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching active tenants", error: error.message });
+    }
+};
+
 exports.getTenantByCivilId = async (req, res) => {
     try {
         const civilId = req.body.civilId;
@@ -83,5 +111,24 @@ exports.editTenant = async (req, res) => {
             message: "An Error Occurred While Updating Tenant",
             error: error.message
         });
+    }
+};
+exports.deactivateTenant = async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+
+        const updatedTenant = await Tenant.findByIdAndUpdate(
+            tenantId,
+            { active: false },
+            { new: true }
+        );
+        console.log(updatedTenant);
+        if (!updatedTenant) {
+            return res.status(404).json({ message: "Tenant not found" });
+        }
+
+        res.status(200).json({ message: "Tenant deactivated successfully", tenant: updatedTenant });
+    } catch (error) {
+        res.status(500).json({ message: "Error deactivating tenant", error: error.message });
     }
 };
