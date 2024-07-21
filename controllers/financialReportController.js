@@ -1,5 +1,6 @@
 const Shareholder = require('../models/shareholderSchema');
 const WithdrawalHistory = require('../models/withdrawalHistory');
+const TransferLog = require('../models/transferLogSchema')
 const xss = require('xss');
 const excel = require('exceljs');
 const { Readable } = require('stream');
@@ -15,7 +16,7 @@ exports.getAllShareholderAmanatReport = async (req, res) => {
         if (fName) queryConditions.fName = fName;
         if (lName) queryConditions.lName = lName;
         if (civilId) queryConditions.civilId = civilId;
-        if (status) queryConditions.status = status;
+        // if (status) queryConditions.status = status;
         if (gender) queryConditions.gender = gender;
         if (area) queryConditions.Area = area;
         // Retrieve all shareholders from the database with populated fields
@@ -46,7 +47,7 @@ exports.getAllShareholderAmanatReport = async (req, res) => {
         });
 
         const count = amanatReports.length;
-        const grandTotal = amanatReports.reduce((sum, report) => sum + report.amanatAmount, 0).toFixed(3);
+        const grandTotal = amanatReports.reduce((sum, report) => sum + report.amanatAmount, 0);
         console.log(grandTotal)
         res.json({
             data: amanatReports,
@@ -109,14 +110,14 @@ exports.getAllShareholderReport = async (req, res) => {
             const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
 
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await WithdrawalHistory.find({
+            const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
-                type: 'Savings'
+                transferType: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+                return (history.amount || 0);
             }, 0);
 
             // Prepare the financial reporting object for the shareholder
@@ -138,7 +139,7 @@ exports.getAllShareholderReport = async (req, res) => {
         }));
 
         const count = shareholders.length;
-        const grandTotal = financialReports.reduce((sum, report) => sum + report.total, 0).toFixed(3);
+        const grandTotal = financialReports.reduce((sum, report) => sum + report.total, 0);
 
         res.json({
             data: financialReports,
@@ -201,14 +202,14 @@ exports.getShareholderReportExport = async (req, res) => {
             const total = savingsCurrentAmount + amanatAmount;
 
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await WithdrawalHistory.find({
+            const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
-                type: 'Savings'
+                transferType: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+                return (history.amount || 0);
             }, 0);
 
             // Prepare the financial reporting object for the shareholder
@@ -340,16 +341,15 @@ exports.getAllShareholderByYear = async (req, res) => {
             const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
 
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await WithdrawalHistory.find({
+            const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
-                type: 'Savings'
+                transferType: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+                return (history.amount || 0);
             }, 0);
-
             // Prepare the financial reporting object for the shareholder
             return {
                 _id,
@@ -460,16 +460,15 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
 
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await WithdrawalHistory.find({
+            const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
-                type: 'Savings'
+                transferType: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+                return (history.amount || 0);
             }, 0);
-
             // Prepare the financial reporting object for the shareholder
             return {
                 _id,
@@ -552,16 +551,15 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
             const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
 
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await WithdrawalHistory.find({
+            const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
-                type: 'Savings'
+                transferType: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+                return (history.amount || 0);
             }, 0);
-
             // Prepare the financial reporting object for the shareholder
             return {
                 _id,
@@ -630,14 +628,14 @@ exports.getShareholderReport = async (req, res) => {
         const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
 
         // Fetch withdrawal history for this shareholder
-        const withdrawalHistories = await WithdrawalHistory.find({
+        const withdrawalHistories = await TransferLog.find({
             shareholder: _id,
-            type: 'Savings'
+            transferType: 'Savings'
         });
 
         // Calculate transferSavings
         const transferSavings = withdrawalHistories.reduce((total, history) => {
-            return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
+            return (history.amount || 0);
         }, 0);
 
         // Prepare the financial reporting object for the shareholder
@@ -660,7 +658,7 @@ exports.getShareholderReport = async (req, res) => {
         res.json({
             data: [financialReport],
             metadata: { total: 1 },
-            grandTotal: total.toFixed(3)
+            grandTotal: total
         });
     } catch (error) {
         console.error(error);

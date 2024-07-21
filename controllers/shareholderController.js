@@ -199,9 +199,9 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'ايبان البنك': shareholder.ibanNumber || '0',
                 'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
                 'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount.toFixed(3) : '0.000',
+                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount : '0.000',
                 'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
-                'قيمة المدخرات': (savingsCurrentAmount).toFixed(3)
+                'قيمة المدخرات': (savingsCurrentAmount)
             };
 
             csvStringifier.write(row);
@@ -359,9 +359,9 @@ exports.getAllShareholdersSavingsFormatted = async (req, res) => {
                 'الايبان': shareholder.ibanNumber || '0',
                 'رقم الهاتف': shareholder.phoneNumber || 'N/A',
                 'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
-                'مدخرات': (savingsCurrentAmount).toFixed(3),
-                'فائدة المدخرات': shareholder.savings.savingsIncrease.toFixed(3),
-                'أمانات': amanatAmount.toFixed(3)
+                'مدخرات': (savingsCurrentAmount),
+                'فائدة المدخرات': shareholder.savings.savingsIncrease,
+                'أمانات': amanatAmount
             };
 
             csvStringifier.write(row);
@@ -1363,13 +1363,12 @@ exports.moveSavingsToAmanat = async (req, res) => {
 };
 exports.addToSavings = async (req, res) => {
     try {
-        const id = req.params.id; // Shareholder ID
-        const userId = req.body.userId; // Admin ID
+        const shareholderId = req.params.id;
+        const adminId = req.body.userId;
         const amountToAdd = Number(req.body.amountToWithdraw);
         const date = new Date(req.body.date);
 
-        const shareholder = await Shareholder.findById(id).populate('savings');
-
+        const shareholder = await Shareholder.findById(shareholderId).populate('savings');
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
@@ -1378,21 +1377,23 @@ exports.addToSavings = async (req, res) => {
             return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
         }
 
-        const savings = shareholder.savings;
-        let amountToSavings = amountToAdd;
+        let savings = shareholder.savings;
+        let amountToSavings = 0;
         let amountToAmanat = 0;
 
-        // Check if adding the amount would make the total exceed 1000
-        if (savings.totalAmount + amountToAdd > 1000) {
+        // Determine how much goes to savings and how much to amanat
+        if (savings.totalAmount + amountToAdd <= 1000) {
+            amountToSavings = amountToAdd;
+        } else {
             amountToSavings = 1000 - savings.totalAmount;
             amountToAmanat = amountToAdd - amountToSavings;
         }
 
         // Update savings
-        if (amountToSavings > 0) {
-            savings.totalAmount += amountToSavings;
-            savings.savingsIncrease -= amountToSavings;
+        savings.totalAmount += amountToSavings;
+        savings.savingsIncrease -= amountToAdd; // Decrease by total amount added
 
+        if (amountToSavings > 0) {
             const newDeposit = {
                 initialAmount: amountToSavings,
                 currentAmount: amountToSavings,
@@ -1401,35 +1402,36 @@ exports.addToSavings = async (req, res) => {
             };
             savings.deposits.push(newDeposit);
 
-            await savings.save();
-
             // Create a deposit log
-            const depositLog = new DepositHistory({
+            await TransferLog.create({
                 shareholder: shareholder._id,
-                savings: savings._id,
+                fromSavings: savings._id,
                 amount: amountToSavings,
                 date: date,
-                admin: userId
+                admin: adminId,
+                transferType: "Savings"
             });
-            await depositLog.save();
         }
 
-        // Move excess to Amanat if necessary
-        let amanatResponse = null;
+        // Handle amanat if necessary
+        let amanatDetails = null;
         if (amountToAmanat > 0) {
-            amanatResponse = await moveToAmanat(shareholder, savings, amountToAmanat, userId, date);
+            amanatDetails = await handleAmanat(shareholder, savings, amountToAmanat, adminId, date);
         }
 
-        // Update the shareholder's lastEditedBy
-        shareholder.lastEditedBy.push(userId);
+        await savings.save();
+
+        // Update shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(adminId);
         await shareholder.save();
 
+        // Prepare response
         const response = {
             shareholder: shareholder,
             savings: savings,
             amountAddedToSavings: amountToSavings,
             amountAddedToAmanat: amountToAmanat,
-            amanatDetails: amanatResponse
+            amanatDetails: amanatDetails
         };
 
         let message = `${shareholder.fName} ${shareholder.lName} has added ${amountToSavings} to their Savings.`;
@@ -1448,11 +1450,14 @@ exports.addToSavings = async (req, res) => {
     }
 };
 
-async function moveToAmanat(shareholder, savings, amountToMove, userId, date) {
+async function handleAmanat(shareholder, savings, amountToMove, adminId, date) {
     const year = new Date().getFullYear().toString();
 
-    // Create or update Amanat
-    let amanat = savings.amanat;
+    let amanat;
+    if (savings.amanat) {
+        amanat = await Amanat.findById(savings.amanat);
+    }
+
     if (!amanat) {
         amanat = new Amanat({
             amount: amountToMove,
@@ -1464,22 +1469,21 @@ async function moveToAmanat(shareholder, savings, amountToMove, userId, date) {
         amanat.amount += amountToMove;
         amanat.year = year;
     }
+
     await amanat.save();
 
-    // Update the shareholder's amanat reference
-    shareholder.savings.amanat = amanat._id;
-    await shareholder.save();
+    savings.amanat = amanat._id;
 
     // Create a transfer log
-    const transferLog = new TransferLog({
+    await TransferLog.create({
         shareholder: shareholder._id,
         fromSavings: savings._id,
         toAmanat: amanat._id,
         amount: amountToMove,
         date: date,
-        admin: userId
+        transferType: "Amanat",
+        admin: adminId
     });
-    await transferLog.save();
 
     return {
         amanat: amanat,
@@ -1740,12 +1744,12 @@ exports.getShareholderFinancials = async (req, res) => {
         }
 
         // Get the savings data for the given year.
-        const savings = shareholder.savings ? shareholder.savings.totalAmount.toFixed(3) : null;
-        const savingsIncrease = shareholder.savings ? shareholder.savings.savingsIncrease.toFixed(3) : null;
+        const savings = shareholder.savings ? shareholder.savings.totalAmount : null;
+        const savingsIncrease = shareholder.savings ? shareholder.savings.savingsIncrease : null;
         // console.log(savings)
         // Find the specific share data for the given year.
-        const share = shareholder.share ? shareholder.share.totalShareAmount.toFixed(3) : null;
-        const shareValue = shareholder.share ? shareholder.share.totalAmount.toFixed(3) : null;
+        const share = shareholder.share ? shareholder.share.totalShareAmount : null;
+        const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
 
         console.log(shareholder.savings.amanat)
         // Prepare the response.
@@ -1795,6 +1799,7 @@ exports.getShareholderAmanatReportExport = async (req, res) => {
                 fullName: `${shareholder.fName} ${shareholder.lName}`,
                 civilId: shareholder.civilId || 'N/A',
                 mobileNumber: shareholder.mobileNumber || 'N/A',
+                savingsIncrease: shareholder.savings.savingsIncrease || 0,
                 amanatAmount: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : 0
             };
         });
@@ -1805,7 +1810,7 @@ exports.getShareholderAmanatReportExport = async (req, res) => {
 
         // Add headers
         worksheet.addRow([
-            'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'أمانات'
+            'رقم العضوية', 'الاسم', 'الرقم المدني', 'رقم الهاتف', 'فائدة المدخرات', 'أمانات'
         ]);
 
         // Add data rows
@@ -1815,6 +1820,7 @@ exports.getShareholderAmanatReportExport = async (req, res) => {
                 record.fullName,
                 record.civilId,
                 record.mobileNumber,
+                record.savingsIncrease,
                 record.amanatAmount
             ]);
         });
