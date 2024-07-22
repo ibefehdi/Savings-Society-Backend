@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 router.post('/createbooking', upload.single('civilIdDocument'), bookingController.makeABooking)
 router.put('/editbooking', bookingController.editBooking);
-router.get('/bookingsbydate', bookingController.getBookingsByHallAndDate);
+// router.get('/bookingsbydate', bookingController.getBookingsByHallAndDate);
 router.post('/cancelbooking', bookingController.cancelBooking)
-
+router.get('/bookingbydate', bookingController.getBookingsByHallAndDate)
 module.exports = router;

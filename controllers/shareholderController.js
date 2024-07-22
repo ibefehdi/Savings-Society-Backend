@@ -1364,8 +1364,10 @@ exports.moveSavingsToAmanat = async (req, res) => {
 exports.addToSavings = async (req, res) => {
     try {
         const shareholderId = req.params.id;
+        console.log(shareholderId)
         const adminId = req.body.userId;
         const amountToAdd = Number(req.body.amountToWithdraw);
+        console.log(amountToAdd)
         const date = new Date(req.body.date);
 
         const shareholder = await Shareholder.findById(shareholderId).populate('savings');
@@ -1378,21 +1380,27 @@ exports.addToSavings = async (req, res) => {
         }
 
         let savings = shareholder.savings;
+        console.log("Current savings total amount:", savings.totalAmount);
+        console.log("Amount to add:", amountToAdd);
         let amountToSavings = 0;
         let amountToAmanat = 0;
 
         // Determine how much goes to savings and how much to amanat
         if (savings.totalAmount + amountToAdd <= 1000) {
             amountToSavings = amountToAdd;
+
         } else {
             amountToSavings = 1000 - savings.totalAmount;
             amountToAmanat = amountToAdd - amountToSavings;
         }
 
+        console.log("Amount to savings:", amountToSavings);
+        console.log("Amount to amanat:", amountToAmanat);
         // Update savings
         savings.totalAmount += amountToSavings;
+        console.log("Savings total amount after adding:", savings.totalAmount);
         savings.savingsIncrease -= amountToAdd; // Decrease by total amount added
-
+        console.log("Savings increase after subtraction:", savings.savingsIncrease);
         if (amountToSavings > 0) {
             const newDeposit = {
                 initialAmount: amountToSavings,

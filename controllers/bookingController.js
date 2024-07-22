@@ -47,7 +47,8 @@ exports.makeABooking = async (req, res) => {
             name: tenantName,
             contactNumber: tenantContactNumber,
             civilId: tenantCivilId,
-            civilIdDocument: civilIdDocument
+            civilIdDocument: civilIdDocument,
+            active: true
         };
 
         const tenant = await Tenant.create(tenantData);
@@ -57,8 +58,8 @@ exports.makeABooking = async (req, res) => {
             hallId,
             date,
             dateOfEvent,
-            startTime,
-            endTime,
+            startTime: "00:00",
+            endTime: "23:59",
             rate,
             active: true,
             customer: tenant._id,
@@ -206,28 +207,18 @@ exports.getBookingsByHallAndDate = async (req, res) => {
         const { hallId, date } = req.query;
 
         // Find bookings by hall ID and date
-        const bookings = await Booking.find({
+        const bookings = await Booking.findOne({
             hallId,
             dateOfEvent: new Date(date),
             active: true
         }).populate('customer');
         console.log(bookings);
         // Format the bookings data for the timeline
-        const formattedBookings = bookings.map((booking) => ({
-            id: booking._id,
-            group: booking.customer.name,
-            customerCivilId: booking.customer.civilId,
-            mobile: booking.customer.contactNumber,
-            rent: booking.rate,
-            title: `${booking.startTime} - ${booking.endTime}`,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            customerEmail: booking.customer.email,
-        }));
+
 
         res.status(200).json({
             success: true,
-            data: formattedBookings,
+            data: bookings,
         });
     } catch (error) {
         res.status(500).json({

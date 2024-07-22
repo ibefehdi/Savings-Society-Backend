@@ -61,7 +61,87 @@ exports.getAllShareholderAmanatReport = async (req, res) => {
     }
 };
 
+const { stringify } = require('csv-stringify');
+const moment = require('moment');
 
+exports.getAllShareholderAmanatReportExport = async (req, res) => {
+    try {
+        const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
+        const queryConditions = { status: 0 };
+
+        // Construct query conditions
+        if (year) queryConditions.year = year;
+        if (membersCode) queryConditions.membersCode = membersCode;
+        if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
+        if (lName) queryConditions.lName = { $regex: lName, $options: 'i' };
+        if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
+        if (gender) queryConditions.gender = gender;
+        if (area) queryConditions.Area = area;
+
+        // Retrieve all shareholders from the database with populated fields
+        const shareholders = await Shareholder.find(queryConditions)
+            .populate('share')
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+
+        // Filter shareholders who have amanat
+        const shareholdersWithAmanat = shareholders.filter(shareholder => shareholder.savings && shareholder.savings.amanat);
+
+        // Set up CSV stringifier
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم العضوية',
+                'الرقم المدني',
+                'الاسم الكامل',
+                'قيمة الأمانات',
+                'المجموع',
+            ]
+        });
+
+        // Set headers for CSV download
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="shareholder_amanat_report.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+
+        // Pipe the CSV stringifier to the response
+        csvStringifier.pipe(res);
+
+        // Write data for each shareholder
+        let grandTotal = 0;
+        shareholdersWithAmanat.forEach((shareholder) => {
+            const { membersCode, civilId, fName, lName, savings } = shareholder;
+            const amanatAmount = savings.amanat ? savings.amanat.amount : 0;
+            grandTotal += amanatAmount;
+
+            const row = {
+                'رقم العضوية': membersCode || '',
+                'الرقم المدني': civilId || '',
+                'الاسم الكامل': `${fName} ${lName}`,
+                'قيمة الأمانات': amanatAmount.toFixed(3),
+                'المجموع': amanatAmount.toFixed(3),
+            };
+
+            csvStringifier.write(row);
+        });
+
+        // Add a total row at the end
+        csvStringifier.write({
+            'رقم العضوية': '',
+            'الرقم المدني': '',
+            'الاسم الكامل': 'المجموع الكلي',
+            'قيمة الأمانات': grandTotal.toFixed(3),
+            'المجموع': grandTotal.toFixed(3),
+            'تفاصيل الأمانات': ''
+        });
+
+        // End the CSV stringifier
+        csvStringifier.end();
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 
 exports.getAllShareholderReport = async (req, res) => {
     try {
