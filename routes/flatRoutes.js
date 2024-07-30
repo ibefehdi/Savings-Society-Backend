@@ -47,4 +47,6 @@ router.put('/flat/:id', upload.fields([
 ]), flatController.editFlat);
 
 router.put('/replacetenant/:id', flatController.replaceTenant);
+
+router.delete('/deleteflat/:id', flatController.deleteFlatController)
 module.exports = router;

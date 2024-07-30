@@ -724,3 +724,30 @@ exports.createFlatBackup = async (req, res) => {
         }
     }
 };
+exports.deleteFlatController = async (req, res) => {
+
+
+    try {
+        const flatId = req.params.id;
+        const flat = await Flat.findById(flatId);
+
+        if (!flat) {
+
+            return res.status(404).json({ message: 'Flat not found' });
+        }
+
+        // Delete the tenant if it exists
+        if (flat.tenant) {
+            await Tenant.findByIdAndDelete(flat.tenant);
+        }
+
+        // Delete the flat
+        await Flat.findByIdAndDelete(flatId);
+
+
+        res.status(200).json({ message: 'Flat and tenant deleted successfully' });
+    } catch (error) {
+
+        res.status(500).json({ message: 'An error occurred', error: error.message });
+    }
+};
