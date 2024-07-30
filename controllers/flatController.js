@@ -307,6 +307,7 @@ exports.assignTenantToFlat = async (req, res) => {
             contactNumber: tenantContactNumber,
             civilId: tenantCivilId,
             flatId: flatId,
+            active: true,
             civilIdDocument: civilIdDocument
         });
 
@@ -574,6 +575,7 @@ exports.replaceTenant = async (req, res) => {
         const newTenant = await Tenant.create({
             name: tenantName,
             contactNumber: tenantContactNumber,
+            active: true,
             // type: tenantType,
             flatId: flat._id,
         });
