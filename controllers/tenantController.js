@@ -50,7 +50,7 @@ exports.getAllActiveTenants = async (req, res) => {
             .limit(resultsPerPage)
             .lean()
             .exec();
-        const count = await Tenant.countDocuments({ active: true });
+        const count = await Tenant.countDocuments({ active: true, active: { $exists: false }, active: null });
         res.status(200).json({
             data: activeTenants,
             count: count,
