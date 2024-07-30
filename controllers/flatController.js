@@ -735,7 +735,8 @@ exports.deleteFlatController = async (req, res) => {
 
             return res.status(404).json({ message: 'Flat not found' });
         }
-
+        const contract = await Contract.findOneAndDelete({ flatId: flatId, tenantId: flat.tenant });
+        console.log(contract)
         // Delete the tenant if it exists
         if (flat.tenant) {
             await Tenant.findByIdAndDelete(flat.tenant);
