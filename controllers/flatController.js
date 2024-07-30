@@ -57,7 +57,8 @@ exports.createFlat = async (req, res) => {
                 contactNumber: tenantContactNumber,
                 civilId: tenantCivilId,
                 flatId: flat._id,
-                civilIdDocument: civilIdDocument
+                civilIdDocument: civilIdDocument,
+                active: true
             });
 
             if (tenant) {
