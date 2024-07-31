@@ -274,7 +274,7 @@ exports.assignTenantToFlat = async (req, res) => {
     try {
         const flatId = req.params.id;
         const { tenantName, tenantContactNumber, tenantCivilId, startDate, endDate, rentAmount, collectionDay } = req.body;
-
+        console.log(req.body)
         const flat = await Flat.findById(flatId);
 
         if (!flat) {
@@ -473,17 +473,45 @@ exports.getFlatsByBuildingId = async (req, res) => {
     try {
         const buildingId = req.params.buildingId;
 
-        // Find all flats with the specified building ID
-        const flats = await Flat.find({ buildingId })
-            .populate('tenant')
-            .exec();
+        // Use aggregation to convert flatNumber to integer and sort numerically
+        const flats = await Flat.aggregate([
+            {
+                $match: {
+                    buildingId: new mongoose.Types.ObjectId(buildingId),
+                },
+            },
+            {
+                $addFields: {
+                    flatNumberInt: { $toInt: "$flatNumber" },
+                },
+            },
+            {
+                $sort: {
+                    flatNumberInt: 1,
+                },
+            },
+            {
+                $lookup: {
+                    from: "tenants",
+                    localField: "tenant",
+                    foreignField: "_id",
+                    as: "tenant",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$tenant",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+        ]);
 
         // Fetch the contracts associated with each flat
         const flatsWithContracts = await Promise.all(
             flats.map(async (flat) => {
                 const contract = await Contract.findOne({ flatId: flat._id });
                 return {
-                    ...flat.toObject(),
+                    ...flat,
                     contract: contract,
                 };
             })
@@ -502,21 +530,23 @@ exports.getFlatsByBuildingId = async (req, res) => {
 
         res.status(200).json(response);
     } catch (error) {
-        console.error('Error retrieving flats:', error);
-        res.status(500).json({ error: 'An error occurred while retrieving flats' });
+        console.error("Error retrieving flats:", error);
+        res.status(500).json({ error: "An error occurred while retrieving flats" });
     }
 };
 exports.removeTenant = async (req, res) => {
     try {
         const flat = await Flat.findById(req.params.id);
+
         if (!flat) {
             return res.status(404).json({ error: 'Flat not found' });
         }
 
-        // Find the contract associated with the flat
-        const contract = await Contract.findOne({ flatId: flat._id }).populate();
-        if (contract) {
-            // Create a new contract history document
+        // Find all contracts associated with the flat
+        const contracts = await Contract.find({ flatId: flat._id }).populate();
+
+        for (let contract of contracts) {
+            // Create a new contract history document for each contract
             await ContractHistory.create({
                 flatId: contract.flatId,
                 tenantId: contract.tenantId,
@@ -551,6 +581,7 @@ exports.removeTenant = async (req, res) => {
         }
     }
 };
+
 exports.replaceTenant = async (req, res) => {
     try {
         const { tenantName, tenantContactNumber, startDate, endDate, rentAmount, collectionDay } = req.body;
