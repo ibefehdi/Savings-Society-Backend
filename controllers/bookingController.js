@@ -227,3 +227,28 @@ exports.getBookingsByHallAndDate = async (req, res) => {
         });
     }
 };
+exports.getAllBookingsByHall = async (req, res) => {
+    try {
+        const { hallId } = req.params;
+
+        // Find all active bookings for the specified hall, sorted by date
+        const bookings = await Booking.find({
+            hallId,
+
+        })
+            .sort({ dateOfEvent: -1 }) // Sort by dateOfEvent in descending order
+            .populate('customer');
+        const count = await Booking.countDocuments({ hallId })
+        res.status(200).json({
+            data: bookings,
+            count: count,
+            metadata: { total: count },
+        });
+    } catch (error) {
+        console.error('Error fetching bookings:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Server error',
+        });
+    }
+};

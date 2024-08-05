@@ -9,6 +9,7 @@ router.get("/buildingcount/", buildingController.getAllBuildingCount)
 
 router.get('/halls', buildingController.getAllHalls)
 router.get('/buildingdropdown', buildingController.getAllBuildingsDropdown)
+router.get('/buildingcount', buildingController.getAllBuildingCount)
 router.get('/building/:id', buildingController.getBuildingById);
 router.post('/createbuilding', buildingController.createBuilding);
 router.post('/building/backup', buildingController.createBuildingBackup);

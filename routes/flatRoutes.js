@@ -34,7 +34,7 @@ router.get('/flats', flatController.getAllFlats);
 // Get a flat by ID
 router.get('/flat/:id', flatController.getFlatById);
 router.get("/flatcount/", flatController.getAllFlatCount)
-
+router.get('/flatcount', flatController.getAllFlatCount)
 router.get('/flatsbybuildingid/:buildingId', flatController.getFlatsByBuildingId)
 router.get('/tenantsbyflatid/:id', flatController.getTenantByFlatId)
 router.get('/removetenant/:id', flatController.removeTenant)

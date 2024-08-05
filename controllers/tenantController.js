@@ -47,6 +47,11 @@ exports.getAllActiveTenants = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
+
+        // Add a stable sort
+        const sortField = req.query.sortField || 'name';
+        const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+
         const activeTenants = await Tenant.find({
             $or: [
                 { active: true },
@@ -54,11 +59,21 @@ exports.getAllActiveTenants = async (req, res) => {
                 { active: null }
             ]
         })
-            .populate('flatId').skip(skip)
+            .populate('flatId')
+            .skip(skip)
+            .sort({ [sortField]: sortOrder, _id: 1 }) // Add _id as secondary sort
             .limit(resultsPerPage)
             .lean()
             .exec();
-        const count = await Tenant.countDocuments({ active: true, active: { $exists: false }, active: null });
+
+        const count = await Tenant.countDocuments({
+            $or: [
+                { active: true },
+                { active: { $exists: false } },
+                { active: null }
+            ]
+        });
+
         res.status(200).json({
             data: activeTenants,
             count: count,

@@ -719,7 +719,7 @@ exports.createFlatBackup = async (req, res) => {
                 if (startDate && endDate && rentAmount) {
                     const today = new Date();
                     const parsedEndDate = new Date(endDate);
-                    const expired = parsedEndDate < today;
+                    const expired = false
 
                     contract = await Contract.create({
                         flatId: flat._id,
@@ -732,9 +732,9 @@ exports.createFlatBackup = async (req, res) => {
                     });
 
                     // Update flat status based on contract
-                    flat.vacant = expired;
+                    flat.vacant = false;
                     flat.tenant = tenant._id;
-                    flat.rentAmount = expired ? 0 : rentAmount;
+                    flat.rentAmount = rentAmount;
                     await flat.save();
                 }
             }
