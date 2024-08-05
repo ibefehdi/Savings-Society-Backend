@@ -34,6 +34,14 @@ exports.getAllTenants = async (req, res) => {
     }
 
 };
+exports.getAllTenantsCount = async (req, res) => {
+    try {
+        const count = await Tenant.countDocuments();
+        res.status(200).send({ count: count });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching active tenants", error: error.message });
+    }
+}
 exports.getAllActiveTenants = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;

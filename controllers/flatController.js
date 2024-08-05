@@ -176,6 +176,7 @@ exports.editFlat = async (req, res) => {
                     name: tenantName,
                     contactNumber: tenantContactNumber,
                     civilId: tenantCivilId,
+                    active: true,
                     flatId: flat._id,
                     civilIdDocument: civilIdDocument
                 });
@@ -758,6 +759,14 @@ exports.createFlatBackup = async (req, res) => {
         }
     }
 };
+exports.getAllFlatCount = async (req, res) => {
+    try {
+        const count = await Flat.countDocuments();
+        res.status(200).send({ count: count });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching active tenants", error: error.message });
+    }
+}
 exports.deleteFlatController = async (req, res) => {
 
 

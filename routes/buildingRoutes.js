@@ -5,6 +5,8 @@ const buildingController = require('../controllers/buildingController');
 
 
 router.get('/buildings', buildingController.getAllBuildings)
+router.get("/buildingcount/", buildingController.getAllBuildingCount)
+
 router.get('/halls', buildingController.getAllHalls)
 router.get('/buildingdropdown', buildingController.getAllBuildingsDropdown)
 router.get('/building/:id', buildingController.getBuildingById);

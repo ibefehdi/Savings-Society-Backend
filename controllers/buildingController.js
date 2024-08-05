@@ -54,6 +54,14 @@ exports.getAllHalls = async (req, res) => {
         res.status(500).json({ error: 'Failed to retrieve buildings' });
     }
 }
+exports.getAllBuildingCount = async (req, res) => {
+    try {
+        const count = await Building.countDocuments();
+        res.status(200).send({ count: count });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching active tenants", error: error.message });
+    }
+}
 exports.getAllBuildingsDropdown = async (req, res) => {
     try {
         const buildings = await Building.find({ type: { $in: ['Building', 'Bakala'] } }).lean();
