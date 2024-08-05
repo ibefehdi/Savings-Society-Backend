@@ -709,6 +709,7 @@ exports.createFlatBackup = async (req, res) => {
                 name: tenantName,
                 contactNumber: tenantContactNumber,
                 civilId: tenantCivilId,
+                active: true,
                 flatId: flat._id,
             });
 
