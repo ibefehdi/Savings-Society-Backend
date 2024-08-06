@@ -88,7 +88,9 @@ app.use(
         },
     })
 );
-const cronSchedule = process.env.SCHEDULER === 'DAILY' ? '* * * * *' : '59 23 L * *';
+const cronSchedule = process.env.SCHEDULER === 'DAILY'
+    ? '* * * * *'
+    : '59 23 31 12 *';
 console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
