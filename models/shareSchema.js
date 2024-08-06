@@ -21,13 +21,26 @@ const purchaseSchema = new mongoose.Schema({
 });
 const shareSchema = new mongoose.Schema({
     purchases: [purchaseSchema],
-    totalAmount: { type: Number, default: 0 },
+    totalAmount: {
+        type: Number,
+        default: 0,
+        get: v => v,
+        set: v => parseFloat(v)
+    },
     totalShareAmount: { type: Number, default: 0 },
     year: { type: Number },
     serial: { type: String },
+    shareIncrease: {
+        type: Number,
+        default: 0,
+        get: v => v,
+        set: v => parseFloat(v)
+    },
     adminId: [adminIdSchema],
     withdrawn: Boolean,
 }, { timestamps: true });
+shareSchema.set('toObject', { getters: true });
+shareSchema.set('toJSON', { getters: true });
 
 // Calculate the current amount based on the initial amount and the time elapsed
 // shareSchema.methods.calculateCurrentPrice = async function () {

@@ -64,7 +64,7 @@ exports.getAllBuildingCount = async (req, res) => {
 }
 exports.getAllBuildingsDropdown = async (req, res) => {
     try {
-        const buildings = await Building.find({ type: { $in: ['Building', 'Bakala'] } }).lean();
+        const buildings = await Building.find().lean();
 
         res.json({ data: buildings });
     } catch (error) {

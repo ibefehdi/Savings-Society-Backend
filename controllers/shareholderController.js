@@ -80,9 +80,18 @@ exports.getAllShareholders = async (req, res) => {
             .limit(resultsPerPage);
 
         const total = await Shareholder.countDocuments(queryConditions);
+        const shareholdersWithTotalInterest = shareholders.map(shareholder => {
+            const savingsIncrease = shareholder.savings ? shareholder.savings.savingsIncrease : 0;
+            const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : 0;
+            const totalInterest = savingsIncrease + shareIncrease;
 
+            return {
+                ...shareholder.toObject(),
+                totalInterest: totalInterest.toFixed(3)
+            };
+        });
         res.status(200).send({
-            data: shareholders,
+            data: shareholdersWithTotalInterest,
             count: total,
             metadata: { total: total }
         });
@@ -603,14 +612,15 @@ exports.createShareholderBackup = async (req, res) => {
         const sanitizedPurchase = {
             amount: req.body.shareAmount,
             initialAmount: req.body.shareInitialPrice,
-            currentAmount: Number(req.body.shareInitialPrice) + Number(req.body.profitShare),
+            currentAmount: Number(req.body.shareInitialPrice),
             date: new Date(),
             lastUpdateDate: new Date(),
         };
 
         const sanitizedShare = {
             purchases: [sanitizedPurchase],
-            totalAmount: Number(req.body.shareInitialPrice) + Number(req.body.profitShare),
+            totalAmount: Number(req.body.shareInitialPrice),
+            shareIncrease: Number(req.body.profitShare),
             totalShareAmount: req.body.shareAmount,
             year: new Date().getFullYear(),
             withdrawn: false,
@@ -632,14 +642,15 @@ exports.createShareholderBackup = async (req, res) => {
 
         const sanitizedDeposit = {
             initialAmount: req.body.savingsInitialPrice,
-            currentAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
+            currentAmount: Number(req.body.savingsInitialPrice),
             date: new Date(),
             lastUpdateDate: new Date(),
         };
 
         const sanitizedSavings = {
             deposits: [sanitizedDeposit],
-            totalAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
+            totalAmount: Number(req.body.savingsInitialPrice),
+            savingsIncrease: Number(req.body.profitSaving),
             withdrawn: withdrawn,
             maxReached: false,
             amanat: newAmanat,
@@ -1292,7 +1303,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
                 path: 'amanat',
                 model: 'Amanat'
             }
-        });
+        }).populate('share');
 
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
@@ -1303,15 +1314,30 @@ exports.moveSavingsToAmanat = async (req, res) => {
         }
 
         const savings = shareholder.savings;
+        const share = shareholder.share;
 
-        // Check if there's enough balance in savingsIncrease to move
-        if (amountToMove > savings.savingsIncrease) {
-            return res.status(400).send({ status: 2, message: "Insufficient funds in savings increase to move." });
+        // Calculate total available increase
+        const totalIncrease = savings.savingsIncrease + share.shareIncrease;
+
+        // Check if there's enough balance in total increase to move
+        if (amountToMove > totalIncrease) {
+            return res.status(400).send({ status: 2, message: "Insufficient funds in total increase to move." });
         }
 
-        // Update the savingsIncrease
-        savings.savingsIncrease -= amountToMove;
+        // Update the savingsIncrease and shareIncrease
+        let remainingToSubtract = amountToMove;
+
+        if (remainingToSubtract <= savings.savingsIncrease) {
+            savings.savingsIncrease -= remainingToSubtract;
+            remainingToSubtract = 0;
+        } else {
+            remainingToSubtract -= savings.savingsIncrease;
+            savings.savingsIncrease = 0;
+            share.shareIncrease -= remainingToSubtract;
+        }
+
         await savings.save();
+        await share.save();
 
         // Create or update Amanat
         let amanat = savings.amanat;
@@ -1347,6 +1373,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
         const response = {
             shareholder: shareholder,
             savings: savings,
+            share: share,
             amanat: amanat,
             amountMoved: amountToMove
         };
@@ -1354,7 +1381,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
         res.status(200).send({
             status: 0,
             response,
-            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Savings Increase to Amanat.`
+            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Total Increase to Amanat.`
         });
 
     } catch (err) {
@@ -1366,11 +1393,10 @@ exports.addToSavings = async (req, res) => {
         const shareholderId = req.params.id;
         console.log(shareholderId)
         const adminId = req.body.userId;
-        const amountToAdd = Number(req.body.amountToWithdraw);
-        console.log(amountToAdd)
+        const amountToWithdraw = Number(req.body.amountToWithdraw);
         const date = new Date(req.body.date);
 
-        const shareholder = await Shareholder.findById(shareholderId).populate('savings');
+        const shareholder = await Shareholder.findById(shareholderId).populate('savings').populate('share');
         if (!shareholder) {
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
@@ -1380,27 +1406,51 @@ exports.addToSavings = async (req, res) => {
         }
 
         let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        // Calculate total available increase
+        const totalIncrease = savings.savingsIncrease + share.shareIncrease;
+
+        // Check if amountToWithdraw is not more than total increase
+        if (amountToWithdraw > totalIncrease) {
+            return res.status(400).send({ status: 1, message: 'Amount to withdraw exceeds available increase' });
+        }
+
         console.log("Current savings total amount:", savings.totalAmount);
-        console.log("Amount to add:", amountToAdd);
+        console.log("Amount to add:", amountToWithdraw);
         let amountToSavings = 0;
         let amountToAmanat = 0;
 
         // Determine how much goes to savings and how much to amanat
-        if (savings.totalAmount + amountToAdd <= 1000) {
-            amountToSavings = amountToAdd;
-
+        if (savings.totalAmount + amountToWithdraw <= 1000) {
+            amountToSavings = amountToWithdraw;
         } else {
             amountToSavings = 1000 - savings.totalAmount;
-            amountToAmanat = amountToAdd - amountToSavings;
+            amountToAmanat = amountToWithdraw - amountToSavings;
         }
 
         console.log("Amount to savings:", amountToSavings);
         console.log("Amount to amanat:", amountToAmanat);
+
         // Update savings
         savings.totalAmount += amountToSavings;
         console.log("Savings total amount after adding:", savings.totalAmount);
-        savings.savingsIncrease -= amountToAdd; // Decrease by total amount added
+
+        // Subtract amountToWithdraw from savingsIncrease and shareIncrease
+        let remainingToSubtract = amountToWithdraw;
+
+        if (remainingToSubtract <= savings.savingsIncrease) {
+            savings.savingsIncrease -= remainingToSubtract;
+            remainingToSubtract = 0;
+        } else {
+            remainingToSubtract -= savings.savingsIncrease;
+            savings.savingsIncrease = 0;
+            share.shareIncrease -= remainingToSubtract;
+        }
+
         console.log("Savings increase after subtraction:", savings.savingsIncrease);
+        console.log("Share increase after subtraction:", share.shareIncrease);
+
         if (amountToSavings > 0) {
             const newDeposit = {
                 initialAmount: amountToSavings,
@@ -1428,6 +1478,7 @@ exports.addToSavings = async (req, res) => {
         }
 
         await savings.save();
+        await share.save();
 
         // Update shareholder's lastEditedBy
         shareholder.lastEditedBy.push(adminId);
@@ -1437,6 +1488,7 @@ exports.addToSavings = async (req, res) => {
         const response = {
             shareholder: shareholder,
             savings: savings,
+            share: share,
             amountAddedToSavings: amountToSavings,
             amountAddedToAmanat: amountToAmanat,
             amanatDetails: amanatDetails
@@ -1758,7 +1810,8 @@ exports.getShareholderFinancials = async (req, res) => {
         // Find the specific share data for the given year.
         const share = shareholder.share ? shareholder.share.totalShareAmount : null;
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
-
+        const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : null
+        const totalInterest = Number(shareIncrease) + Number(savingsIncrease)
         console.log(shareholder.savings.amanat)
         // Prepare the response.
         const response = {
@@ -1766,7 +1819,9 @@ exports.getShareholderFinancials = async (req, res) => {
             sharesTotalAmount: share || null,
             shareValue: shareValue || null,
             amanat: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : null,
-            savingsIncrease: savingsIncrease || null
+            savingsIncrease: savingsIncrease || null,
+            shareIncrease: shareIncrease || null,
+            totalInterest: totalInterest || null
         };
 
         // Return the data to the client.

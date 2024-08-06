@@ -52,6 +52,9 @@ exports.getAllActiveTenants = async (req, res) => {
         const sortField = req.query.sortField || 'name';
         const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
+        console.log(`Page: ${page}, Results per Page: ${resultsPerPage}, Skip: ${skip}`);
+        console.log(`Sort Field: ${sortField}, Sort Order: ${sortOrder}`);
+
         const activeTenants = await Tenant.find({
             $or: [
                 { active: true },
@@ -61,7 +64,7 @@ exports.getAllActiveTenants = async (req, res) => {
         })
             .populate('flatId')
             .skip(skip)
-            .sort({ [sortField]: sortOrder, _id: 1 }) // Add _id as secondary sort
+            .sort({ [sortField]: sortOrder, _id: 1 })
             .limit(resultsPerPage)
             .lean()
             .exec();
@@ -74,15 +77,19 @@ exports.getAllActiveTenants = async (req, res) => {
             ]
         });
 
+        console.log(`Active Tenants: ${activeTenants.length}, Total Count: ${count}`);
+
         res.status(200).json({
             data: activeTenants,
             count: count,
-            metadata: { total: count },
+            metadata: { total: count, page: page, resultsPerPage: resultsPerPage },
         });
     } catch (error) {
+        console.error("Error fetching active tenants:", error);
         res.status(500).json({ message: "Error fetching active tenants", error: error.message });
     }
 };
+
 
 exports.getTenantByCivilId = async (req, res) => {
     try {

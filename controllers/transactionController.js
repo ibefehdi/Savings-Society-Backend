@@ -7,20 +7,22 @@ const Transaction = require('../models/transactionSchema');
 exports.createTransaction = async (req, res) => {
     try {
         const { buildingId, flatId, amount, date, type, description, transactionFrom } = req.body;
+        console.log(req.body)
+        // Validate required fields
+        if (!buildingId || !amount || !date || !type || !transactionFrom) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
 
         const transactionData = {
             buildingId,
             amount,
-            date,
+            date: new Date(date),
             type,
             transactionFrom,
             description,
         };
 
-        // Add flatId to transactionData only if it's provided
-        if (flatId) {
-            transactionData.flatId = flatId;
-        }
+
 
         const transaction = new Transaction(transactionData);
 

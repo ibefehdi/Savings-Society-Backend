@@ -82,7 +82,6 @@ exports.editVoucher = async (req, res) => {
         // Status logic
         if (status === 'Paid') {
             voucherData.paidDate = paidDate;
-            voucherData.pendingDate = null;
         } else if (status === 'Pending') {
             voucherData.pendingDate = pendingDate;
             voucherData.paidDate = null;

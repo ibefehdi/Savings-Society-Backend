@@ -37,7 +37,6 @@ const contractSchema = new mongoose.Schema({
 contractSchema.pre('save', function (next) {
     if (this.endDate <= new Date() && !this.expired) {
         this.expired = true;
-        this.flatId = null
         this.model('ContractHistory').create({
             flatId: this.flatId,
             tenantId: this.tenantId,

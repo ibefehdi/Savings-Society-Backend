@@ -22,6 +22,8 @@ exports.createFlat = async (req, res) => {
             floorNumber
         } = req.body;
 
+        console.log('Received request body:', req.body);
+
         const flat = await Flat.create({
             buildingId: buildingId,
             flatNumber: flatNumber,
@@ -29,9 +31,19 @@ exports.createFlat = async (req, res) => {
             vacant: true
         });
 
+        console.log('Created new flat:', flat);
+
         let tenant = null;
         let contract = null;
         if (!tenantName || !tenantContactNumber || !startDate || !endDate || !rentAmount || !collectionDay) {
+            console.log('Missing required fields:', {
+                tenantName,
+                tenantContactNumber,
+                startDate,
+                endDate,
+                rentAmount,
+                collectionDay
+            });
             return res.status(400).json({ error: 'Missing required fields' });
         }
         if (tenantName && tenantContactNumber) {
@@ -50,6 +62,8 @@ exports.createFlat = async (req, res) => {
                     path: fileUrl,
                     fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
                 };
+
+                console.log('Uploaded civil ID document:', civilIdDocument);
             }
 
             tenant = await Tenant.create({
@@ -61,10 +75,13 @@ exports.createFlat = async (req, res) => {
                 active: true
             });
 
+            console.log('Created new tenant:', tenant);
+
             if (tenant) {
                 flat.vacant = false;
                 flat.tenant = tenant._id;
                 await flat.save();
+                console.log('Updated flat with tenant information:', flat);
 
                 if (startDate && endDate && rentAmount && collectionDay) {
                     let contractDocument = undefined;
@@ -82,8 +99,10 @@ exports.createFlat = async (req, res) => {
                             path: fileUrl,
                             fileType: fileExtension.toLowerCase() === '.pdf' ? 'pdf' : 'image'
                         };
-                    }
 
+                        console.log('Uploaded contract document:', contractDocument);
+                    }
+                    console.log('Flat ID before creating contract:', flat._id);
                     contract = await Contract.create({
                         flatId: flat._id,
                         tenantId: tenant._id,
@@ -94,6 +113,12 @@ exports.createFlat = async (req, res) => {
                         expired: false,
                         contractDocument: contractDocument
                     });
+
+                    console.log('Created new contract:', contract);
+
+                    flat.contract = contract._id;
+                    await flat.save();
+                    console.log('Updated flat with contract information:', flat);
                 }
             }
         }
@@ -102,6 +127,8 @@ exports.createFlat = async (req, res) => {
             .populate('tenant')
             .populate('buildingId');
 
+        console.log('Populated flat information:', populatedFlat);
+
         res.status(201).json({
             tenant: tenant,
             flat: populatedFlat,
@@ -109,7 +136,7 @@ exports.createFlat = async (req, res) => {
             contract: contract,
         });
     } catch (err) {
-        console.error(err);
+        console.error('Error occurred:', err);
         if (err.name === 'ValidationError') {
             res.status(400).json({ error: err.message });
         } else {
