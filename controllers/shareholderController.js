@@ -99,6 +99,36 @@ exports.getAllShareholders = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 };
+exports.assignIbanToShareholder = async (req, res) => {
+    const { membersCode, iban } = req.body;
+
+    if (!membersCode || !iban) {
+        return res.status(400).json({ message: 'membersCode and IBAN are required' });
+    }
+
+    try {
+        const shareholder = await Shareholder.findOne({ membersCode: membersCode });
+
+        if (!shareholder) {
+            return res.status(404).json({ message: 'Shareholder not found' });
+        }
+
+        shareholder.ibanNumber = iban;
+        await shareholder.save();
+
+        res.status(200).json({
+            message: 'IBAN assigned successfully',
+            shareholder: {
+                membersCode: shareholder.membersCode,
+                fullName: shareholder.fullName,
+                ibanNumber: shareholder.ibanNumber
+            }
+        });
+    } catch (error) {
+        console.error('Error assigning IBAN:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
 
 exports.getShareholdersWithAmanat = async (req, res) => {
     try {
