@@ -64,7 +64,7 @@ exports.getAllVouchers = async (req, res) => {
 exports.editVoucher = async (req, res) => {
     try {
         const { id } = req.params;
-        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status } = req.body;
+        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status, voucherNo } = req.body;
 
         const existingVoucher = await Voucher.findById(id);
         if (!existingVoucher) {
@@ -77,6 +77,7 @@ exports.editVoucher = async (req, res) => {
             tenantId,
             amount,
             status,
+            voucherNo
         };
 
         // Status logic
@@ -108,7 +109,7 @@ exports.editVoucher = async (req, res) => {
                             date: paidDate,
                             type: "Income",
                             transactionFrom: flatId ? "Flat" : "Hall",
-                            description: `Voucher Paid By ${tenant.name}`,
+                            description: `Voucher ${voucherNo} Paid By ${tenant.name}`,
                         });
                     } else if (existingVoucher.status === 'Cancelled') {
                         // Create a new transaction for Cancelled to Paid
@@ -119,7 +120,7 @@ exports.editVoucher = async (req, res) => {
                             date: paidDate,
                             type: "Income",
                             transactionFrom: flatId ? "Flat" : "Hall",
-                            description: `Cancelled Voucher Paid By ${tenant.name}`,
+                            description: `Cancelled Voucher ${voucherNo} Paid By ${tenant.name}`,
                         });
                     }
                     break;
@@ -133,12 +134,10 @@ exports.editVoucher = async (req, res) => {
                             amount,
                             type: "Income",
                             transactionFrom: flatId ? "Flat" : "Hall",
-                            description: { $regex: new RegExp(`Voucher Paid By ${tenant.name}`) }
+                            description: { $regex: new RegExp(`Voucher ${voucherNo} Paid By ${tenant.name}`) }
                         });
                     }
                     break;
-
-
             }
         }
 
@@ -198,17 +197,28 @@ exports.getPaidVouchers = async (req, res) => {
 exports.payVoucher = async (req, res) => {
     try {
         const id = req.params.id;
-        const date = req.body.date;
-        const voucher = await Voucher.findByIdAndUpdate(id, { status: 'Paid', paidDate: date }, { new: true }).populate({
+        const { date, receiptNo } = req.body;
+
+        const voucher = await Voucher.findByIdAndUpdate(
+            id,
+            {
+                status: 'Paid',
+                paidDate: date,
+                receiptNo: receiptNo // Add the receipt number to the voucher
+            },
+            { new: true }
+        ).populate({
             path: 'flatId',
             populate: {
                 path: 'buildingId',
                 model: 'Building',
             },
         }).populate('tenantId');
+
         if (!voucher) {
             return res.status(404).json({ status: 'Not Found', message: "Voucher not found" });
         }
+
         const transaction = new Transaction({
             buildingId: voucher?.buildingId,
             flatId: voucher?.flatId,
@@ -217,17 +227,26 @@ exports.payVoucher = async (req, res) => {
             date: date,
             type: "Income",
             transactionFrom: voucher?.flatId ? "Flat" : "Hall",
-            description: `Voucher Paid By ${voucher?.tenantId?.name}`,
+            description: `Voucher ${voucher.voucherNo} Paid By ${voucher?.tenantId?.name} (Receipt: ${receiptNo})`,
         });
-        transaction.save();
-        res.status(200).json({ status: 'OK', message: "Voucher Paid successfully", amount: voucher.amount });
+
+        await transaction.save();
+
+        res.status(200).json({
+            status: 'OK',
+            message: "Voucher Paid successfully",
+            amount: voucher.amount,
+            voucherNo: voucher.voucherNo,
+            receiptNo: voucher.receiptNo
+        });
     } catch (error) {
+        console.error('Error paying voucher:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }
 exports.createVoucher = async (req, res) => {
     try {
-        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status } = req.body;
+        const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status, voucherNo } = req.body;
 
         // Check if a voucher already exists for the same tenant, flat, and month
         const existingVoucher = await Voucher.findOne({
@@ -250,6 +269,7 @@ exports.createVoucher = async (req, res) => {
             tenantId,
             amount,
             status,
+            voucherNo
         };
 
         if (status === 'Paid') {
@@ -271,7 +291,7 @@ exports.createVoucher = async (req, res) => {
                 date: paidDate,
                 type: "Income",
                 transactionFrom: flatId ? "Flat" : "Hall",
-                description: `Voucher Paid By ${tenant.name}`,
+                description: `Voucher ${voucherNo} Paid By ${tenant.name}`,
             };
 
             await Transaction.create(transactionData);
@@ -314,14 +334,14 @@ exports.getVoucherReportExport = async (req, res) => {
         // Prepare an array to store the voucher report data
         const reportData = vouchers.map(voucher => {
             return {
-                buildingNo: voucher.buildingId.no,
-                buildingName: voucher.buildingId.name,
-                flatNumber: voucher.flatId.flatNumber,
-                floorNumber: voucher.flatId.floorNumber,
-                tenantName: voucher.tenantId.name,
-                contactNumber: voucher.tenantId.contactNumber,
-                civilId: voucher.tenantId.civilId,
-                amount: voucher.amount,
+                buildingNo: voucher.buildingId?.no || "",
+                buildingName: voucher.buildingId?.name || "",
+                flatNumber: voucher.flatId?.flatNumber || "",
+                floorNumber: voucher.flatId?.floorNumber || "",
+                tenantName: voucher.tenantId?.name || "",
+                contactNumber: voucher.tenantId?.contactNumber || "",
+                civilId: voucher.tenantId?.civilId || "",
+                amount: voucher.amount || "",
                 pendingDate: voucher.pendingDate ? voucher.pendingDate.toISOString().split('T')[0] : 'N/A',
                 paidDate: voucher.paidDate ? voucher.paidDate.toISOString().split('T')[0] : 'N/A',
                 status: voucher.status

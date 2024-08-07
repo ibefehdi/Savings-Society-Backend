@@ -8,6 +8,7 @@ const voucherSchema = new mongoose.Schema({
     pendingDate: { type: Date, },
     paidDate: { type: Date, },
     status: { type: String, enum: ['Pending', 'Paid'], required: true },
+    voucherNo: { type: String }
 });
 
 module.exports = mongoose.model('Voucher', voucherSchema);
