@@ -27,6 +27,12 @@ const savingsSchema = new mongoose.Schema({
         get: v => v,
         set: v => parseFloat(v)
     },
+    savingsIncreaseReporting: {
+        type: Number,
+        default: 0,
+        get: v => v,
+        set: v => parseFloat(v)
+    },
     withdrawn: { type: Boolean },
     maxReached: { type: Boolean },
     amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
