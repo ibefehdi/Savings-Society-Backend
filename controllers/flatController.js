@@ -16,7 +16,6 @@ exports.createFlat = async (req, res) => {
             tenantContactNumber,
             tenantCivilId,
             startDate,
-            endDate,
             rentAmount,
             collectionDay,
             floorNumber
@@ -35,12 +34,11 @@ exports.createFlat = async (req, res) => {
 
         let tenant = null;
         let contract = null;
-        if (!tenantName || !tenantContactNumber || !startDate || !endDate || !rentAmount || !collectionDay) {
+        if (!tenantName || !tenantContactNumber || !startDate || !rentAmount || !collectionDay) {
             console.log('Missing required fields:', {
                 tenantName,
                 tenantContactNumber,
                 startDate,
-                endDate,
                 rentAmount,
                 collectionDay
             });
@@ -83,7 +81,7 @@ exports.createFlat = async (req, res) => {
                 await flat.save();
                 console.log('Updated flat with tenant information:', flat);
 
-                if (startDate && endDate && rentAmount && collectionDay) {
+                if (startDate && rentAmount && collectionDay) {
                     let contractDocument = undefined;
                     if (req.files && req.files['contractDocument']) {
                         const file = req.files['contractDocument'][0];
@@ -103,6 +101,11 @@ exports.createFlat = async (req, res) => {
                         console.log('Uploaded contract document:', contractDocument);
                     }
                     console.log('Flat ID before creating contract:', flat._id);
+
+                    // Calculate endDate as 1 year from startDate
+                    const endDate = new Date(startDate);
+                    endDate.setFullYear(endDate.getFullYear() + 1);
+
                     contract = await Contract.create({
                         flatId: flat._id,
                         tenantId: tenant._id,
@@ -153,7 +156,6 @@ exports.editFlat = async (req, res) => {
             tenantContactNumber,
             tenantCivilId,
             startDate,
-            endDate,
             rentAmount,
             collectionDay,
             floorNumber
@@ -218,7 +220,7 @@ exports.editFlat = async (req, res) => {
         }
 
         // Handle contract information
-        if (startDate || endDate || rentAmount || collectionDay) {
+        if (startDate || rentAmount || collectionDay) {
             let contractDocument = undefined;
             if (req.files && req.files['contractDocument']) {
                 const file = req.files['contractDocument'][0];
@@ -241,27 +243,31 @@ exports.editFlat = async (req, res) => {
 
             if (contract) {
                 // Update existing contract
-                contract.startDate = startDate;
-                contract.endDate = endDate;
+                if (startDate) {
+                    contract.startDate = startDate;
+                    // Calculate new endDate
+                    const endDate = new Date(startDate);
+                    endDate.setFullYear(endDate.getFullYear() + 1);
+                    contract.endDate = endDate;
+                }
                 contract.rentAmount = rentAmount === undefined ? null : rentAmount;
                 contract.collectionDay = collectionDay;
 
-                // Normalize dates to ensure correct comparison (optional)
+                // Normalize dates to ensure correct comparison
                 const today = new Date();
                 today.setHours(0, 0, 0, 0); // Set current date to midnight
-                const normalizedEndDate = new Date(endDate);
+                const normalizedEndDate = new Date(contract.endDate);
                 normalizedEndDate.setHours(0, 0, 0, 0); // Set end date to midnight
 
-                if (normalizedEndDate >= today) {
-                    contract.expired = false;
-                } else {
-                    contract.expired = true;
-                }
+                contract.expired = normalizedEndDate < today;
 
                 contract.contractDocument = contractDocument || contract.contractDocument;
                 await contract.save();
             } else {
                 // Create new contract
+                const endDate = new Date(startDate);
+                endDate.setFullYear(endDate.getFullYear() + 1);
+
                 contract = await Contract.create({
                     flatId: flat._id,
                     tenantId: flat.tenant,

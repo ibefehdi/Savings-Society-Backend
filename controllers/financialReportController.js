@@ -5,6 +5,8 @@ const xss = require('xss');
 const excel = require('exceljs');
 const { Readable } = require('stream');
 
+const { stringify } = require('csv-stringify');
+const moment = require('moment');
 exports.getAllShareholderAmanatReport = async (req, res) => {
     try {
         const { year, membersCode, fName, lName, civilId, gender, area } = req.query;
@@ -61,8 +63,6 @@ exports.getAllShareholderAmanatReport = async (req, res) => {
     }
 };
 
-const { stringify } = require('csv-stringify');
-const moment = require('moment');
 
 exports.getAllShareholderAmanatReportExport = async (req, res) => {
     try {
@@ -167,19 +167,16 @@ exports.getAllShareholderReport = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = 0;
+            let shareIncrease = share ? share.shareIncrease : 0;;
             let shareCurrentAmount = 0;
-            if (share && share.purchases) {
-                share.purchases.forEach(purchase => {
-                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
-                });
-                shareCurrentAmount = share.totalAmount;
-            }
+
+            shareCurrentAmount = share.totalAmount;
+
 
             // Get the savings increase directly from the savings record
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
             let savingsCurrentAmount = savings ? savings.totalAmount : 0;
-
+            console.log("Savings Increase: ", savingsIncrease, "Savings Current Amount:", savingsCurrentAmount)
             // Calculate the amanat amount
             let amanatAmount = 0;
             if (savings && savings.amanat) {
@@ -187,8 +184,8 @@ exports.getAllShareholderReport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
-
+            const total = (savingsCurrentAmount).toFixed(3);
+            // console.log("total:", total)
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await TransferLog.find({
                 shareholder: _id,
@@ -219,8 +216,8 @@ exports.getAllShareholderReport = async (req, res) => {
         }));
 
         const count = shareholders.length;
-        const grandTotal = financialReports.reduce((sum, report) => sum + report.total, 0);
-
+        const grandTotal = financialReports.reduce((sum, report) => Number(sum) + Number(report.total), 0).toFixed(3);
+        console.log("Grand Total: " + grandTotal)
         res.json({
             data: financialReports,
             count: count,
@@ -259,14 +256,11 @@ exports.getShareholderReportExport = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = 0;
+            let shareIncrease = share ? share.shareIncrease : 0;;
             let shareCurrentAmount = 0;
-            if (share && share.purchases) {
-                share.purchases.forEach(purchase => {
-                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
-                });
-                shareCurrentAmount = share.totalAmount;
-            }
+
+            shareCurrentAmount = share.totalAmount;
+
 
             // Calculate the savings increase and current amount
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
@@ -279,7 +273,7 @@ exports.getShareholderReportExport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = savingsCurrentAmount + amanatAmount;
+            const total = savingsCurrentAmount;
 
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await TransferLog.find({
@@ -398,14 +392,11 @@ exports.getAllShareholderByYear = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = 0;
+            let shareIncrease = share ? share.shareIncrease : 0;
             let shareCurrentAmount = 0;
-            if (share && share.purchases) {
-                share.purchases.forEach(purchase => {
-                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
-                });
-                shareCurrentAmount = share.totalAmount;
-            }
+
+
+            shareCurrentAmount = share.totalAmount;
 
             // Calculate the savings increase and current amount
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
@@ -418,7 +409,7 @@ exports.getAllShareholderByYear = async (req, res) => {
             }
 
             // Calculate the total
-            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = savingsCurrentAmount;
 
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await TransferLog.find({
@@ -517,14 +508,11 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = 0;
+            let shareIncrease = share ? share.shareIncrease : 0;;
             let shareCurrentAmount = 0;
-            if (share && share.purchases) {
-                share.purchases.forEach(purchase => {
-                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
-                });
-                shareCurrentAmount = share.totalAmount;
-            }
+
+            shareCurrentAmount = share.totalAmount;
+
 
             // Calculate the savings increase and current amount
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
@@ -537,7 +525,7 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             }
 
             // Calculate the total
-            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            const total = savingsCurrentAmount;
 
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await TransferLog.find({
@@ -610,17 +598,13 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
             // Calculate the share increase and current amount
             let shareIncrease = 0;
             let shareCurrentAmount = 0;
-            if (share && share.purchases) {
-                share.purchases.forEach(purchase => {
-                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
-                });
-                shareCurrentAmount = share.totalAmount;
-            }
+
+            shareCurrentAmount = share.totalAmount;
+            shareIncrease = share ? share.shareIncrease : 0;
 
             // Calculate the savings increase and current amount
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
             let savingsCurrentAmount = savings ? savings.totalAmount : 0;
-
             // Calculate the amanat amount
             let amanatAmount = 0;
             if (savings && savings.amanat) {
@@ -628,7 +612,8 @@ exports.getAllShareholdersByWorkplace = async (req, res) => {
             }
 
             // Calculate the total
-            const total = shareCurrentAmount + savingsCurrentAmount + amanatAmount;
+            // const total = shareCurrentAmount + savingsCurrentAmount;
+            const total = savingsCurrentAmount
 
             // Fetch withdrawal history for this shareholder
             const withdrawalHistories = await TransferLog.find({
@@ -685,14 +670,11 @@ exports.getShareholderReport = async (req, res) => {
         const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
         // Calculate the share increase and current amount
-        let shareIncrease = 0;
+        let shareIncrease = share ? share.shareIncrease : 0;
         let shareCurrentAmount = 0;
-        if (share && share.purchases) {
-            share.purchases.forEach(purchase => {
-                shareIncrease += purchase.currentAmount - purchase.initialAmount;
-            });
-            shareCurrentAmount = share.totalAmount;
-        }
+
+        shareCurrentAmount = share.totalAmount;
+
 
         // Get the savings increase directly from the savings record
         let savingsIncrease = savings ? savings.savingsIncrease : 0;
@@ -705,7 +687,7 @@ exports.getShareholderReport = async (req, res) => {
         }
 
         // Calculate the total
-        const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
+        const total = savingsCurrentAmount;
 
         // Fetch withdrawal history for this shareholder
         const withdrawalHistories = await TransferLog.find({

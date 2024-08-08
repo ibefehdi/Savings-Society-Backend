@@ -679,7 +679,7 @@ exports.createShareholderBackup = async (req, res) => {
 
         const sanitizedSavings = {
             deposits: [sanitizedDeposit],
-            totalAmount: Number(req.body.savingsInitialPrice),
+            totalAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
             savingsIncrease: Number(req.body.profitSaving),
             withdrawn: withdrawn,
             maxReached: false,
