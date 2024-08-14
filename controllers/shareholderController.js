@@ -1418,6 +1418,213 @@ exports.moveSavingsToAmanat = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+exports.transferSpecificInterestToSavings = async (req, res) => {
+    try {
+        const { membersCode, userId, amountToTransfer } = req.body;
+
+        if (!amountToTransfer || isNaN(amountToTransfer) || amountToTransfer <= 0) {
+            return res.status(400).send({ status: 1, message: 'Invalid amount to transfer' });
+        }
+
+        // Find the shareholder by membersCode
+        const shareholder = await Shareholder.findOne({ membersCode }).populate('savings').populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        // Calculate total available interest
+        const totalInterest = savings.savingsIncrease + share.shareIncrease;
+
+        if (amountToTransfer > totalInterest) {
+            return res.status(400).send({ status: 1, message: 'Insufficient interest available for transfer' });
+        }
+
+        const date = new Date();
+        let amountToSavings = 0;
+        let amountToAmanat = 0;
+
+        // Determine how much goes to savings and how much to amanat
+        if (savings.totalAmount + amountToTransfer <= 1000) {
+            amountToSavings = amountToTransfer;
+        } else {
+            amountToSavings = 1000 - savings.totalAmount;
+            amountToAmanat = amountToTransfer - amountToSavings;
+        }
+
+        // Update savings
+        savings.totalAmount += amountToSavings;
+
+        // Subtract transferred amount from interest
+        let remainingToSubtract = amountToTransfer;
+        if (remainingToSubtract <= savings.savingsIncrease) {
+            savings.savingsIncrease -= remainingToSubtract;
+            remainingToSubtract = 0;
+        } else {
+            remainingToSubtract -= savings.savingsIncrease;
+            savings.savingsIncrease = 0;
+            share.shareIncrease -= remainingToSubtract;
+        }
+
+        if (amountToSavings > 0) {
+            const newDeposit = {
+                initialAmount: amountToSavings,
+                currentAmount: amountToSavings,
+                date: date,
+                lastUpdateDate: date
+            };
+            savings.deposits.push(newDeposit);
+
+            // Create a deposit log
+            await TransferLog.create({
+                shareholder: shareholder._id,
+                fromSavings: savings._id,
+                amount: amountToSavings,
+                date: date,
+                admin: userId,
+                transferType: "Specific Interest to Savings"
+            });
+        }
+
+        // Handle amanat if necessary
+        let amanatDetails = null;
+        if (amountToAmanat > 0) {
+            amanatDetails = await handleAmanat(shareholder, savings, amountToAmanat, userId, date);
+        }
+
+        await savings.save();
+        await share.save();
+
+        // Update shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        // Prepare response
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            share: share,
+            amountAddedToSavings: amountToSavings,
+            amountAddedToAmanat: amountToAmanat,
+            amanatDetails: amanatDetails,
+            remainingInterest: savings.savingsIncrease + share.shareIncrease
+        };
+
+        let message = `${shareholder.fName} ${shareholder.lName}'s interest of ${amountToTransfer} has been transferred: ${amountToSavings} to Savings`;
+        if (amountToAmanat > 0) {
+            message += ` and ${amountToAmanat} to Amanat.`;
+        }
+        message += ` Remaining interest: ${response.remainingInterest}`;
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.transferInterestToSavings = async (req, res) => {
+    try {
+        const { membersCode, userId } = req.body;
+
+        // Find the shareholder by membersCode
+        const shareholder = await Shareholder.findOne({ membersCode }).populate('savings').populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        // Calculate total available interest
+        const totalInterest = savings.savingsIncrease + share.shareIncrease;
+
+        if (totalInterest <= 0) {
+            return res.status(400).send({ status: 1, message: 'No interest available to transfer' });
+        }
+
+        const date = new Date();
+        let amountToSavings = 0;
+        let amountToAmanat = 0;
+
+        // Determine how much goes to savings and how much to amanat
+        if (savings.totalAmount + totalInterest <= 1000) {
+            amountToSavings = totalInterest;
+        } else {
+            amountToSavings = 1000 - savings.totalAmount;
+            amountToAmanat = totalInterest - amountToSavings;
+        }
+
+        // Update savings
+        savings.totalAmount += amountToSavings;
+
+        // Reset interest amounts
+        savings.savingsIncrease = 0;
+        share.shareIncrease = 0;
+
+        if (amountToSavings > 0) {
+            const newDeposit = {
+                initialAmount: amountToSavings,
+                currentAmount: amountToSavings,
+                date: date,
+                lastUpdateDate: date
+            };
+            savings.deposits.push(newDeposit);
+
+            // Create a deposit log
+            await TransferLog.create({
+                shareholder: shareholder._id,
+                fromSavings: savings._id,
+                amount: amountToSavings,
+                date: date,
+                admin: userId,
+                transferType: "Savings"
+            });
+        }
+
+        // Handle amanat if necessary
+        let amanatDetails = null;
+        if (amountToAmanat > 0) {
+            amanatDetails = await handleAmanat(shareholder, savings, amountToAmanat, userId, date);
+        }
+
+        await savings.save();
+        await share.save();
+
+        // Update shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        // Prepare response
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            share: share,
+            amountAddedToSavings: amountToSavings,
+            amountAddedToAmanat: amountToAmanat,
+            amanatDetails: amanatDetails
+        };
+
+        let message = `${shareholder.fName} ${shareholder.lName}'s interest of ${totalInterest} has been transferred: ${amountToSavings} to Savings`;
+        if (amountToAmanat > 0) {
+            message += ` and ${amountToAmanat} to Amanat.`;
+        }
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
 exports.addToSavings = async (req, res) => {
     try {
         const shareholderId = req.params.id;
