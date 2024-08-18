@@ -10,7 +10,7 @@ router.get('/vouchers/pending', voucherController.getPendingVouchers);
 
 // Route for getting paid vouchers
 router.get('/vouchers/paid', voucherController.getPaidVouchers);
-router.get('/voucher-report', voucherController.getVoucherReportExport);
+router.get('/voucher-report', voucherController.getAllVouchersFormatted);
 //Routes for POST
 router.post('/voucherpaid/:id', voucherController.payVoucher)
 router.post('/createvoucher', voucherController.createVoucher)

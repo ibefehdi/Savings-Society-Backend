@@ -5,6 +5,7 @@ const Building = require('../models/buildingSchema');
 const Contract = require('../models/contractSchema');
 const path = require('path');
 const fs = require('fs');
+const { stringify } = require('csv-stringify');
 
 const ContractHistory = require('../models/contractHistorySchema')
 exports.createFlat = async (req, res) => {
@@ -566,6 +567,95 @@ exports.getFlatsByBuildingId = async (req, res) => {
     } catch (error) {
         console.error("Error retrieving flats:", error);
         res.status(500).json({ error: "An error occurred while retrieving flats" });
+    }
+};
+
+
+exports.getFlatsByBuildingIdFormatted = async (req, res) => {
+    try {
+        const buildingId = req.params.buildingId;
+
+        const flats = await Flat.aggregate([
+            {
+                $match: {
+                    buildingId: new mongoose.Types.ObjectId(buildingId),
+                },
+            },
+            {
+                $addFields: {
+                    flatNumberInt: { $toInt: "$flatNumber" },
+                },
+            },
+            {
+                $sort: {
+                    flatNumberInt: 1,
+                },
+            },
+            {
+                $lookup: {
+                    from: "tenants",
+                    localField: "tenant",
+                    foreignField: "_id",
+                    as: "tenant",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$tenant",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+        ]);
+
+        const flatsWithContracts = await Promise.all(
+            flats.map(async (flat) => {
+                const contract = await Contract.findOne({ flatId: flat._id });
+                return {
+                    ...flat,
+                    contract: contract,
+                };
+            })
+        );
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم الشقة',
+                'رقم الطابق',
+                'حالة الشغور',
+                'اسم المستأجر',
+                'رقم العقد',
+                'تاريخ بداية العقد',
+                'تاريخ نهاية العقد',
+                'قيمة الإيجار'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="flats.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        flatsWithContracts.forEach((flat) => {
+            const row = {
+                'رقم الشقة': flat.flatNumber || 'N/A',
+                'رقم الطابق': flat.floorNumber || 'N/A',
+                'حالة الشغور': flat.vacant ? 'شاغرة' : 'مشغولة',
+                'اسم المستأجر': flat.tenant ? `${flat.tenant.firstName} ${flat.tenant.lastName}` : 'N/A',
+                'رقم العقد': flat.contract ? flat.contract.contractNumber : 'N/A',
+                'تاريخ بداية العقد': flat.contract ? new Date(flat.contract.startDate).toLocaleDateString('ar-EG') : 'N/A',
+                'تاريخ نهاية العقد': flat.contract ? new Date(flat.contract.endDate).toLocaleDateString('ar-EG') : 'N/A',
+                'قيمة الإيجار': flat.contract ? flat.contract.rentAmount : 'N/A'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (error) {
+        console.error("Error exporting flats:", error);
+        res.status(500).json({ error: "An error occurred while exporting flats" });
     }
 };
 exports.removeTenant = async (req, res) => {

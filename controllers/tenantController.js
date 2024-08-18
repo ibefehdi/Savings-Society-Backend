@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Tenant = require('../models/tenantSchema');
 const Address = require('../models/addressSchema');
+const { stringify } = require('csv-stringify');
 
 exports.getAllTenants = async (req, res) => {
     try {
@@ -89,7 +90,57 @@ exports.getAllActiveTenants = async (req, res) => {
         res.status(500).json({ message: "Error fetching active tenants", error: error.message });
     }
 };
+exports.getAllActiveTenantsCSV = async (req, res) => {
+    try {
+        const activeTenants = await Tenant.find({
+            $or: [
+                { active: true },
+                { active: { $exists: false } },
+                { active: null }
+            ]
+        })
+            .populate('flatId')
+            .sort({ name: 1, _id: 1 })
+            .lean()
+            .exec();
 
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'اسم المستأجر',
+                'رقم الاتصال',
+                'الرقم المدني',
+                'رقم الشقة',
+                'رقم الطابق',
+                'اسم المبنى'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="active_tenants.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        activeTenants.forEach((tenant) => {
+            const row = {
+                'اسم المستأجر': tenant.name || 'N/A',
+                'رقم الاتصال': tenant.contactNumber || 'N/A',
+                'الرقم المدني': tenant.civilId || 'N/A',
+                'رقم الشقة': tenant.flatId ? tenant.flatId.flatNumber : 'N/A',
+                'رقم الطابق': tenant.flatId ? tenant.flatId.floorNumber : 'N/A',
+                'اسم المبنى': tenant.flatId && tenant.flatId.buildingId ? tenant.flatId.buildingId.name : 'N/A'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (error) {
+        console.error("Error exporting active tenants to CSV:", error);
+        res.status(500).json({ message: "Error exporting active tenants to CSV", error: error.message });
+    }
+};
 
 exports.getTenantByCivilId = async (req, res) => {
     try {

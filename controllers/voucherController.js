@@ -2,6 +2,8 @@ const Voucher = require('../models/voucherSchema');
 const Transaction = require('../models/transactionSchema');
 const Tenant = require('../models/tenantSchema');
 const excel = require('exceljs');
+const { stringify } = require('csv-stringify');
+const moment = require('moment');
 
 exports.getAllVouchers = async (req, res) => {
     try {
@@ -317,78 +319,76 @@ exports.deleteVoucher = async (req, res) => {
     }
 }
 
-exports.getVoucherReportExport = async (req, res) => {
+exports.getAllVouchersFormatted = async (req, res) => {
     try {
-        const { status, format } = req.query;
-        let queryConditions = {};
-
-        // Construct query conditions
-        if (status) queryConditions.status = status;
-
-        // Retrieve all vouchers from the database with populated fields
-        const vouchers = await Voucher.find(queryConditions)
-            .populate('buildingId')
-            .populate('flatId')
-            .populate('tenantId');
-
-        // Prepare an array to store the voucher report data
-        const reportData = vouchers.map(voucher => {
-            return {
-                buildingNo: voucher.buildingId?.no || "",
-                buildingName: voucher.buildingId?.name || "",
-                flatNumber: voucher.flatId?.flatNumber || "",
-                floorNumber: voucher.flatId?.floorNumber || "",
-                tenantName: voucher.tenantId?.name || "",
-                contactNumber: voucher.tenantId?.contactNumber || "",
-                civilId: voucher.tenantId?.civilId || "",
-                amount: voucher.amount || "",
-                pendingDate: voucher.pendingDate ? voucher.pendingDate.toISOString().split('T')[0] : 'N/A',
-                paidDate: voucher.paidDate ? voucher.paidDate.toISOString().split('T')[0] : 'N/A',
-                status: voucher.status
-            };
-        });
-
-        // Prepare the workbook and worksheet
-        const workbook = new excel.Workbook();
-        const worksheet = workbook.addWorksheet('Voucher Report');
-
-        // Add headers in Arabic
-        worksheet.addRow([
-            'رقم المبنى', 'اسم المبنى', 'رقم الشقة', 'رقم الطابق', 'اسم المستأجر', 'رقم الاتصال', 'الرقم المدني', 'المبلغ', 'تاريخ الاستحقاق', 'تاريخ الدفع', 'الحالة'
-        ]);
-
-        // Add data rows
-        reportData.forEach(record => {
-            worksheet.addRow([
-                record.buildingNo,
-                record.buildingName,
-                record.flatNumber,
-                record.floorNumber,
-                record.tenantName,
-                record.contactNumber,
-                record.civilId,
-                record.amount,
-                record.pendingDate,
-                record.paidDate,
-                record.status
-            ]);
-        });
-
-        // Set content type and disposition based on format
-        if (format === 'csv') {
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', 'attachment; filename=voucher_report.csv');
-            await workbook.csv.write(res);
-        } else {
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', 'attachment; filename=voucher_report.xlsx');
-            await workbook.xlsx.write(res);
+        // Filter logic (keep as is)
+        let filter = {};
+        if (req.query.buildingId) {
+            filter.buildingId = req.query.buildingId;
         }
-        res.write('\uFEFF');  // UTF-8 BOM
+        if (req.query.tenantName) {
+            filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
+        }
+        if (req.query.civilId) {
+            filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
+        }
+        if (req.query.contactNumber) {
+            filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
+        }
 
-        res.end();
+        const vouchers = await Voucher.find(filter)
+            .populate({
+                path: 'flatId',
+                populate: {
+                    path: 'buildingId',
+                    model: 'Building',
+                },
+            })
+            .populate('tenantId')
+            .populate('buildingId');
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم الايصال',
+                'اسم المبنى',
+                'رقم الشقة',
+                'اسم المستأجر',
+                'الرقم المدني',
+                'رقم الاتصال',
+                'المبلغ',
+                'تاريخ الاستحقاق',
+                'تاريخ الدفع',
+                'الحالة'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="vouchers.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        vouchers.forEach((voucher) => {
+            const row = {
+                'رقم الايصال': voucher.voucherNo || 'N/A',
+                'اسم المبنى': voucher.buildingId ? voucher.buildingId.name : 'N/A',
+                'رقم الشقة': voucher.flatId ? voucher.flatId.flatNumber : 'N/A',
+                'اسم المستأجر': voucher.tenantId ? voucher.tenantId.name : 'N/A',
+                'الرقم المدني': voucher.tenantId ? voucher.tenantId.civilId : 'N/A',
+                'رقم الاتصال': voucher.tenantId ? voucher.tenantId.contactNumber : 'N/A',
+                'المبلغ': voucher.amount.toFixed(3),
+                'تاريخ الاستحقاق': voucher.pendingDate ? moment(voucher.pendingDate).format('DD/MM/YYYY') : 'N/A',
+                'تاريخ الدفع': voucher.paidDate ? moment(voucher.paidDate).format('DD/MM/YYYY') : 'N/A',
+                'الحالة': voucher.status
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
     } catch (error) {
-        console.error(error);
+        console.error('Error in getAllVouchersFormatted:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

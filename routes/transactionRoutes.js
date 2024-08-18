@@ -11,6 +11,12 @@ router.get('/transactions', transactionController.getAllTransactions);
 // Get transactions by type
 router.get('/transactions/:type', transactionController.getTransactionsByType);
 
+router.get('/transactionsexport', transactionController.getAllTransactionsCSV);
+
+router.get('/profit-report/export', transactionController.getProfitReportCSV);
+
+router.get('/profit-report-flat/export', transactionController.getProfitReportByFlatCSV)
+
 router.get('/expenses/buildings', transactionController.getExpensesByBuilding);
 
 router.get('/incomes/buildings', transactionController.getIncomeByBuilding);

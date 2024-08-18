@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Building = require('../models/buildingSchema');
 const Address = require('../models/addressSchema');
+const { stringify } = require('csv-stringify');
+
 exports.createBuilding = async (req, res) => {
     try {
         const sanitizedAddress = {
@@ -42,7 +44,46 @@ exports.getAllBuildings = async (req, res) => {
         res.status(500).json({ error: 'Failed to retrieve buildings' });
     }
 };
+exports.getAllBuildingsFormatted = async (req, res) => {
+    try {
+        const buildings = await Building.find({ type: { $in: ['Building', 'Bakala'] } })
+            .populate('address')
+            .lean();
 
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم المبنى',
+                'اسم المبنى',
+                'عدد الطوابق',
+                'النوع',
+                'العنوان'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="buildings.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        buildings.forEach((building) => {
+            const row = {
+                'رقم المبنى': building.no || 'N/A',
+                'اسم المبنى': building.name || 'N/A',
+                'عدد الطوابق': building.floors || 'N/A',
+                'النوع': building.type || 'N/A',
+                'العنوان': building.address ? `Block ${building.address.block}, Street ${building.address.street}, House ${building.address.house}` : 'N/A'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (err) {
+        res.status(500).send({ message: err.message });
+    }
+};
 exports.getAllHalls = async (req, res) => {
     try {
         const halls = await Building.find({ type: "Hall" }).populate('address').lean();

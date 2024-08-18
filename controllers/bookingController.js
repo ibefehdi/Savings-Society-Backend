@@ -6,7 +6,8 @@ const Building = require('../models/buildingSchema');
 const Voucher = require('../models/voucherSchema')
 const path = require('path');
 const fs = require('fs');
-
+const { stringify } = require('csv-stringify');
+const moment = require('moment');
 exports.makeABooking = async (req, res) => {
     try {
         const { hallId, date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, tenantType, dateOfEvent } = req.body;
@@ -250,5 +251,57 @@ exports.getAllBookingsByHall = async (req, res) => {
             success: false,
             error: 'Server error',
         });
+    }
+};
+exports.getAllBookingsByHallCSV = async (req, res) => {
+    try {
+        const { hallId } = req.params;
+
+        const bookings = await Booking.find({ hallId })
+            .sort({ dateOfEvent: -1 })
+            .populate('customer')
+            .populate('hallId')
+            .lean()
+            .exec();
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'تاريخ الحجز',
+                'تاريخ الفعالية',
+                'وقت البدء',
+                'وقت الانتهاء',
+                'السعر',
+                'اسم العميل',
+                'رقم هاتف العميل',
+                'اسم القاعة'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="hall_bookings.csv"');
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        bookings.forEach((booking) => {
+            const row = {
+                'تاريخ الحجز': moment(booking.date).format('YYYY-MM-DD') || 'N/A',
+                'تاريخ الفعالية': booking.dateOfEvent ? moment(booking.dateOfEvent).format('YYYY-MM-DD') : 'N/A',
+                'وقت البدء': booking.startTime || 'N/A',
+                'وقت الانتهاء': booking.endTime || 'N/A',
+                'السعر': booking.rate || 'N/A',
+                'اسم العميل': booking.customer ? booking.customer.name : 'N/A',
+                'رقم هاتف العميل': booking.customer ? booking.customer.contactNumber : 'N/A',
+                'اسم القاعة': booking.hallId ? booking.hallId.name : 'N/A'
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (error) {
+        console.error("Error exporting hall bookings to CSV:", error);
+        res.status(500).json({ message: "Error exporting hall bookings to CSV", error: error.message });
     }
 };

@@ -25,4 +25,5 @@ router.put('/editbooking', bookingController.editBooking);
 router.post('/cancelbooking', bookingController.cancelBooking)
 router.get('/bookingbydate', bookingController.getBookingsByHallAndDate)
 router.get('/bookingbyhall/:hallId', bookingController.getAllBookingsByHall)
+router.get('/bookings/:hallId/export', bookingController.getAllBookingsByHallCSV);
 module.exports = router;
