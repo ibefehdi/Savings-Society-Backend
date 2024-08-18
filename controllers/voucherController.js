@@ -63,6 +63,35 @@ exports.getAllVouchers = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+exports.getVouchersByFlatId = async (req, res) => {
+    try {
+        const { flatId } = req.params;
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
+
+        const vouchers = await Voucher.find({ flatId })
+            .populate('tenantId').populate('buildingId').populate('flatId')
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(resultsPerPage);
+
+        const count = await Voucher.countDocuments({ flatId });
+
+        res.status(200).json({
+            data: vouchers,
+            count: count,
+            metadata: {
+                total: count,
+                page: page,
+                resultsPerPage: resultsPerPage
+            },
+        });
+    } catch (error) {
+        console.error('Error in getVouchersByFlatId:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.editVoucher = async (req, res) => {
     try {
         const { id } = req.params;
@@ -389,6 +418,67 @@ exports.getAllVouchersFormatted = async (req, res) => {
 
     } catch (error) {
         console.error('Error in getAllVouchersFormatted:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+exports.getVouchersByFlatIdFormatted = async (req, res) => {
+    try {
+        const { flatId } = req.params;
+
+        const vouchers = await Voucher.find({ flatId })
+            .populate({
+                path: 'flatId',
+                populate: {
+                    path: 'buildingId',
+                    model: 'Building',
+                },
+            })
+            .populate('tenantId')
+            .populate('buildingId')
+            .sort({ pendingDate: 1 }); // Sort by pending date ascending
+
+        const csvStringifier = stringify({
+            header: true,
+            columns: [
+                'رقم الايصال',
+                'اسم المبنى',
+                'رقم الشقة',
+                'اسم المستأجر',
+                'الرقم المدني',
+                'رقم الاتصال',
+                'المبلغ',
+                'تاريخ الاستحقاق',
+                'تاريخ الدفع',
+                'الحالة'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="vouchers_flat_${flatId}.csv"`);
+        res.write('\uFEFF');  // UTF-8 BOM
+        csvStringifier.pipe(res);
+
+        vouchers.forEach((voucher) => {
+            const row = {
+                'رقم الايصال': voucher.voucherNo || 'N/A',
+                'اسم المبنى': voucher.flatId.buildingId ? voucher.flatId.buildingId.name : 'N/A',
+                'رقم الشقة': voucher.flatId ? voucher.flatId.flatNumber : 'N/A',
+                'اسم المستأجر': voucher.tenantId ? voucher.tenantId.name : 'N/A',
+                'الرقم المدني': voucher.tenantId ? voucher.tenantId.civilId : 'N/A',
+                'رقم الاتصال': voucher.tenantId ? voucher.tenantId.contactNumber : 'N/A',
+                'المبلغ': voucher.amount.toFixed(3),
+                'تاريخ الاستحقاق': voucher.pendingDate ? moment(voucher.pendingDate).format('DD/MM/YYYY') : 'N/A',
+                'تاريخ الدفع': voucher.paidDate ? moment(voucher.paidDate).format('DD/MM/YYYY') : 'N/A',
+                'الحالة': voucher.status
+            };
+
+            csvStringifier.write(row);
+        });
+
+        csvStringifier.end();
+
+    } catch (error) {
+        console.error('Error in getVouchersByFlatIdFormatted:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
