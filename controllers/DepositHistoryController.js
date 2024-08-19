@@ -11,20 +11,120 @@ const getAllDepositHistory = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const histories = await DepositHistory.find()
-            .populate('shareholder')
-            .populate('savings')
-            .populate('admin')
-            .populate('shares').skip(skip)
-            .limit(resultsPerPage);
 
+        // Extract filter parameters
+        const {
+            membersCode,
+            fullName,
+            civilId,
+            mobileNumber,
+            depositDate,
+            previousAmount,
+            newAmount,
+            type,
+            admin
+        } = req.query;
+
+        let aggregationPipeline = [
+            {
+                $lookup: {
+                    from: 'shareholders',
+                    localField: 'shareholder',
+                    foreignField: '_id',
+                    as: 'shareholderInfo'
+                }
+            },
+            { $unwind: '$shareholderInfo' }
+        ];
+
+        // Shareholder filters
+        if (membersCode) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.membersCode': { $regex: `^${membersCode}`, $options: 'i' } }
+            });
+        }
+        if (fullName) {
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'shareholderInfo.fName': { $regex: fullName, $options: 'i' } },
+                        { 'shareholderInfo.lName': { $regex: fullName, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+        if (civilId) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.civilId': { $regex: `^${civilId}`, $options: 'i' } }
+            });
+        }
+        if (mobileNumber) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.mobileNumber': { $regex: `^${mobileNumber}`, $options: 'i' } }
+            });
+        }
+
+        // Other filters
+        if (depositDate) {
+            aggregationPipeline.push({ $match: { depositDate: new Date(depositDate) } });
+        }
+        if (previousAmount) {
+            aggregationPipeline.push({ $match: { previousAmount: previousAmount } });
+        }
+        if (newAmount) {
+            aggregationPipeline.push({ $match: { newAmount: newAmount } });
+        }
+        if (type) {
+            aggregationPipeline.push({ $match: { type: type } });
+        }
+        if (admin) {
+            aggregationPipeline.push({
+                $lookup: {
+                    from: 'users',
+                    localField: 'admin',
+                    foreignField: '_id',
+                    as: 'adminInfo'
+                }
+            });
+            aggregationPipeline.push({ $unwind: '$adminInfo' });
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'adminInfo.fName': { $regex: admin, $options: 'i' } },
+                        { 'adminInfo.lName': { $regex: admin, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+
+        // Count documents
+        const countPipeline = [...aggregationPipeline];
+        countPipeline.push({ $count: 'total' });
+        const countResult = await DepositHistory.aggregate(countPipeline);
+        const count = countResult.length > 0 ? countResult[0].total : 0;
+
+        // Add pagination
+        aggregationPipeline.push({ $skip: skip });
+        aggregationPipeline.push({ $limit: resultsPerPage });
+
+        // Perform aggregation
+        const histories = await DepositHistory.aggregate(aggregationPipeline);
+
+        // Manually populate references if needed
+        await DepositHistory.populate(histories, [
+            { path: 'savings' },
+            { path: 'shares' },
+            { path: 'admin' },
+            { path: 'shareholder' }
+        ]);
+
+        // Check for empty or null shareholders
         histories.forEach((history, index) => {
             if (!history.shareholder) {
                 console.log(`Empty or null shareholder at index ${index}:`, history.shareholder);
             }
         });
-        const count = await DepositHistory.countDocuments()
-        console.log(count)
+
         res.status(200).json({
             success: true,
             count: count,
@@ -39,6 +139,7 @@ const getAllDepositHistory = async (req, res) => {
         });
     }
 };
+
 const getDepositHistoryReportExport = async (req, res) => {
     try {
         const { year, membersCode, type, format } = req.query;

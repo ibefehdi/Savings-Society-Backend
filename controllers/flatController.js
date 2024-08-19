@@ -641,7 +641,7 @@ exports.getFlatsByBuildingIdFormatted = async (req, res) => {
                 'رقم الشقة': flat.flatNumber || 'N/A',
                 'رقم الطابق': flat.floorNumber || 'N/A',
                 'حالة الشغور': flat.vacant ? 'شاغرة' : 'مشغولة',
-                'اسم المستأجر': flat.tenant ? `${flat.tenant.firstName} ${flat.tenant.lastName}` : 'N/A',
+                'اسم المستأجر': flat.tenant ? `${flat.tenant.name} ` : 'N/A',
                 'رقم العقد': flat.contract ? flat.contract.contractNumber : 'N/A',
                 'تاريخ بداية العقد': flat.contract ? new Date(flat.contract.startDate).toLocaleDateString('ar-EG') : 'N/A',
                 'تاريخ نهاية العقد': flat.contract ? new Date(flat.contract.endDate).toLocaleDateString('ar-EG') : 'N/A',

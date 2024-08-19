@@ -8,14 +8,118 @@ exports.getAllWithdrawalHistory = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
-        const histories = await WithdrawalHistory.find()
-            .populate('shareholder')
-            .populate('savings')
-            .populate('admin')
-            .populate('shares')
-            .skip(skip)
-            .limit(resultsPerPage);
-        const count = await WithdrawalHistory.countDocuments();
+
+        // Extract filter parameters
+        const {
+            membersCode,
+            fullName,
+            civilId,
+            mobileNumber,
+            withdrawalDate,
+            previousAmount,
+            newAmount,
+            type,
+            admin,
+            year
+        } = req.query;
+
+        let aggregationPipeline = [
+            {
+                $lookup: {
+                    from: 'shareholders',
+                    localField: 'shareholder',
+                    foreignField: '_id',
+                    as: 'shareholderInfo'
+                }
+            },
+            { $unwind: '$shareholderInfo' }
+        ];
+
+        // Shareholder filters
+        if (membersCode) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.membersCode': { $regex: `^${membersCode}`, $options: 'i' } }
+            });
+        }
+        if (fullName) {
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'shareholderInfo.fName': { $regex: fullName, $options: 'i' } },
+                        { 'shareholderInfo.lName': { $regex: fullName, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+        if (civilId) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.civilId': { $regex: `^${civilId}`, $options: 'i' } }
+            });
+        }
+        if (mobileNumber) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.mobileNumber': { $regex: `^${mobileNumber}`, $options: 'i' } }
+            });
+        }
+
+        // Other filters
+        if (withdrawalDate) {
+            aggregationPipeline.push({ $match: { withdrawalDate: new Date(withdrawalDate) } });
+        }
+        if (previousAmount) {
+            aggregationPipeline.push({ $match: { previousAmount: previousAmount } });
+        }
+        if (newAmount) {
+            aggregationPipeline.push({ $match: { newAmount: newAmount } });
+        }
+        if (type) {
+            aggregationPipeline.push({ $match: { type: type } });
+        }
+        if (year) {
+            aggregationPipeline.push({ $match: { year: year } });
+        }
+        if (admin) {
+            aggregationPipeline.push({
+                $lookup: {
+                    from: 'users',
+                    localField: 'admin',
+                    foreignField: '_id',
+                    as: 'adminInfo'
+                }
+            });
+            aggregationPipeline.push({ $unwind: '$adminInfo' });
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'adminInfo.fName': { $regex: admin, $options: 'i' } },
+                        { 'adminInfo.lName': { $regex: admin, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+
+        // Count documents
+        const countPipeline = [...aggregationPipeline];
+        countPipeline.push({ $count: 'total' });
+        const countResult = await WithdrawalHistory.aggregate(countPipeline);
+        const count = countResult.length > 0 ? countResult[0].total : 0;
+
+        // Add pagination
+        aggregationPipeline.push({ $skip: skip });
+        aggregationPipeline.push({ $limit: resultsPerPage });
+
+        // Perform aggregation
+        const histories = await WithdrawalHistory.aggregate(aggregationPipeline);
+
+        // Manually populate references if needed
+        await WithdrawalHistory.populate(histories, [
+            { path: 'savings' },
+            { path: 'shares' },
+            { path: 'amanat' },
+            { path: 'admin' },
+            { path: 'shareholder' }
+        ]);
+
         res.status(200).json({
             success: true,
             count: count,
@@ -24,7 +128,7 @@ exports.getAllWithdrawalHistory = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Server Error: Unable to retrieve deposit histories',
+            message: 'Server Error: Unable to retrieve withdrawal histories',
             error: error.message
         });
     }
@@ -120,21 +224,129 @@ exports.getAllTransferLog = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
-        const transferLogs = await TransferLog.find()
-            .populate({
-                path: 'fromSavings',
-                populate: {
-                    path: 'amanat',
-                    model: 'Amanat'
-                }
-            })
-            .populate('toAmanat')
-            .populate('admin')
-            .populate('shareholder')
-            .skip(skip)
-            .limit(resultsPerPage);
+        // Extract filter parameters
+        const {
+            membersCode,
+            fullName,
+            civilId,
+            mobileNumber,
+            date,
+            amount,
+            admin,
+            fromSavings,
+            toAmanat
+        } = req.query;
 
-        const count = await TransferLog.countDocuments();
+        let aggregationPipeline = [
+            {
+                $lookup: {
+                    from: 'shareholders',
+                    localField: 'shareholder',
+                    foreignField: '_id',
+                    as: 'shareholderInfo'
+                }
+            },
+            { $unwind: '$shareholderInfo' }
+        ];
+
+        // Shareholder filters
+        if (membersCode) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.membersCode': { $regex: `^${membersCode}`, $options: 'i' } }
+            });
+        }
+        if (fullName) {
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'shareholderInfo.fName': { $regex: fullName, $options: 'i' } },
+                        { 'shareholderInfo.lName': { $regex: fullName, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+        if (civilId) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.civilId': { $regex: `^${civilId}`, $options: 'i' } }
+            });
+        }
+        if (mobileNumber) {
+            aggregationPipeline.push({
+                $match: { 'shareholderInfo.mobileNumber': { $regex: `^${mobileNumber}`, $options: 'i' } }
+            });
+        }
+
+        // Other filters
+        if (date) {
+            aggregationPipeline.push({ $match: { date: new Date(date) } });
+        }
+        if (amount) {
+            aggregationPipeline.push({ $match: { amount: parseFloat(amount) } });
+        }
+        if (admin) {
+            aggregationPipeline.push({
+                $lookup: {
+                    from: 'users',
+                    localField: 'admin',
+                    foreignField: '_id',
+                    as: 'adminInfo'
+                }
+            });
+            aggregationPipeline.push({ $unwind: '$adminInfo' });
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { 'adminInfo.fName': { $regex: admin, $options: 'i' } },
+                        { 'adminInfo.lName': { $regex: admin, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+        if (fromSavings) {
+            aggregationPipeline.push({
+                $lookup: {
+                    from: 'savings',
+                    localField: 'fromSavings',
+                    foreignField: '_id',
+                    as: 'savingsInfo'
+                }
+            });
+            aggregationPipeline.push({ $unwind: '$savingsInfo' });
+            aggregationPipeline.push({ $match: { 'savingsInfo.totalAmount': parseFloat(fromSavings) } });
+        }
+        if (toAmanat) {
+            aggregationPipeline.push({
+                $lookup: {
+                    from: 'amanats',
+                    localField: 'toAmanat',
+                    foreignField: '_id',
+                    as: 'amanatInfo'
+                }
+            });
+            aggregationPipeline.push({ $unwind: '$amanatInfo' });
+            aggregationPipeline.push({ $match: { 'amanatInfo.amount': parseFloat(toAmanat) } });
+        }
+
+        // Count documents
+        const countPipeline = [...aggregationPipeline];
+        countPipeline.push({ $count: 'total' });
+        const countResult = await TransferLog.aggregate(countPipeline);
+        const count = countResult.length > 0 ? countResult[0].total : 0;
+
+        // Add pagination
+        aggregationPipeline.push({ $skip: skip });
+        aggregationPipeline.push({ $limit: resultsPerPage });
+
+        // Perform aggregation
+        const transferLogs = await TransferLog.aggregate(aggregationPipeline);
+
+        // Manually populate references if needed
+        await TransferLog.populate(transferLogs, [
+            { path: 'fromSavings', populate: { path: 'amanat', model: 'Amanat' } },
+            { path: 'toAmanat' },
+            { path: 'admin' },
+            { path: 'shareholder' }
+        ]);
 
         res.status(200).json({
             success: true,
