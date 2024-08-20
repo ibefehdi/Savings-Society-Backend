@@ -280,15 +280,30 @@ exports.createVoucher = async (req, res) => {
         const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status, voucherNo } = req.body;
 
         // Check if a voucher already exists for the same tenant, flat, and month
-        const existingVoucher = await Voucher.findOne({
+        const existingVoucherQuery = {
             buildingId,
             flatId,
             tenantId,
-            $or: [
-                { pendingDate: { $gte: new Date(pendingDate).setDate(1), $lt: new Date(pendingDate).setMonth(new Date(pendingDate).getMonth() + 1) } },
-                { paidDate: { $gte: new Date(paidDate).setDate(1), $lt: new Date(paidDate).setMonth(new Date(paidDate).getMonth() + 1) } }
-            ]
-        });
+            pendingDate: {
+                $gte: new Date(pendingDate).setDate(1),
+                $lt: new Date(pendingDate).setMonth(new Date(pendingDate).getMonth() + 1)
+            }
+        };
+
+        // Only add paidDate to the query if it's a non-empty string
+        if (paidDate && paidDate.trim() !== '') {
+            existingVoucherQuery.$or = [
+                { pendingDate: existingVoucherQuery.pendingDate },
+                {
+                    paidDate: {
+                        $gte: new Date(paidDate).setDate(1),
+                        $lt: new Date(paidDate).setMonth(new Date(paidDate).getMonth() + 1)
+                    }
+                }
+            ];
+        }
+
+        const existingVoucher = await Voucher.findOne(existingVoucherQuery);
 
         if (existingVoucher) {
             return res.status(400).json({ error: 'A voucher already exists for this tenant, flat, and month' });
@@ -300,33 +315,19 @@ exports.createVoucher = async (req, res) => {
             tenantId,
             amount,
             status,
-            voucherNo
+            voucherNo,
+            pendingDate: new Date(pendingDate)
         };
 
-        if (status === 'Paid') {
-            voucherData.paidDate = paidDate;
-        } else {
-            voucherData.pendingDate = pendingDate;
+        // Only add paidDate if it's a non-empty string
+        if (paidDate && paidDate.trim() !== '') {
+            voucherData.paidDate = new Date(paidDate);
         }
 
         const [tenant, createdVoucher] = await Promise.all([
             Tenant.findById(tenantId),
             Voucher.create(voucherData),
         ]);
-
-        if (status === 'Paid') {
-            const transactionData = {
-                buildingId,
-                flatId,
-                amount,
-                date: paidDate,
-                type: "Income",
-                transactionFrom: flatId ? "Flat" : "Hall",
-                description: `Voucher ${voucherNo} Paid By ${tenant.name}`,
-            };
-
-            await Transaction.create(transactionData);
-        }
 
         res.status(201).json(createdVoucher);
     } catch (error) {
