@@ -38,6 +38,12 @@ const savingsSchema = new mongoose.Schema({
     amanat: { type: mongoose.Schema.Types.ObjectId, ref: 'Amanat' },
     year: { type: String },
     adminId: [adminIdSchema],
+    alraseed: {
+        type: Number,
+        default: 0,
+        get: v => v,
+        set: v => parseFloat(v)
+    }
 }, { timestamps: true });
 savingsSchema.set('toObject', { getters: true });
 savingsSchema.set('toJSON', { getters: true });
