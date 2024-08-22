@@ -201,7 +201,9 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'تاريخ الانتساب',
                 'ايبان البنك',
                 'رقم التليفون',
-                'العنوان',
+                'بلوك',
+                'شارع',
+                'منزل',
                 'عدد الاسهم',
                 'قيم الاسهم',
                 'قيمة المدخرات'
@@ -237,7 +239,9 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'ايبان البنك': shareholder.ibanNumber || '0',
                 'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
-                'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
+                'بلوك': shareholder.address ? shareholder.address.block : '',
+                'شارع': shareholder.address ? shareholder.address.street : '',
+                'منزل': shareholder.address ? shareholder.address.house : '',
                 'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount : '0.000',
                 'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
                 'قيمة المدخرات': (savingsCurrentAmount)

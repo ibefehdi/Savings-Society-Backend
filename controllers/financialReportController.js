@@ -307,8 +307,15 @@ exports.getShareholderReportExport = async (req, res) => {
 
         // Add headers
         worksheet.addRow([
-            'Members Code', 'Full Name', 'Share Increase', 'Share Current Amount',
-            'Savings Increase', 'Savings Current Amount', 'Amanat Amount', 'Total', 'Transfer Savings'
+            'رقم العضوية',
+            'الاسم الكامل',
+            'زيادة الأسهم',
+            'القيمة الحالية للأسهم',
+            'زيادة المدخرات',
+            'القيمة الحالية للمدخرات',
+            'مبلغ الأمانات',
+            'الإجمالي',
+            'تحويل المدخرات'
         ]);
 
         // Add data rows
