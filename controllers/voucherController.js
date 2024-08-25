@@ -44,6 +44,9 @@ exports.getAllVouchers = async (req, res) => {
             })
             .populate('tenantId')
             .populate('buildingId')
+            .sort({
+                $natural: -1
+            })
             .skip(skip)
             .limit(resultsPerPage);
 
