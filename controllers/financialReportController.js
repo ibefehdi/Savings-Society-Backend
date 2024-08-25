@@ -210,8 +210,8 @@ exports.getAllShareholderReport = async (req, res) => {
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
-                total,
-                transferSavings
+                transferSavings,
+                total
             };
         }));
 
@@ -265,7 +265,7 @@ exports.getShareholderReportExport = async (req, res) => {
             // Calculate the savings increase and current amount
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
             let savingsCurrentAmount = savings ? savings.totalAmount : 0;
-
+            let alraseed = savings ? savings.alraseed : 0;
             // Calculate the amanat amount
             let amanatAmount = 0;
             if (savings && savings.amanat) {
@@ -296,8 +296,9 @@ exports.getShareholderReportExport = async (req, res) => {
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
-                total,
-                transferSavings
+                transferSavings,
+                alraseed,
+                total
             };
         }));
 
@@ -314,8 +315,8 @@ exports.getShareholderReportExport = async (req, res) => {
             'زيادة المدخرات',
             'القيمة الحالية للمدخرات',
             'مبلغ الأمانات',
-            'الإجمالي',
-            'تحويل المدخرات'
+            'تحويل المدخرات',
+            'الإجمالي'
         ]);
 
         // Add data rows
@@ -328,8 +329,8 @@ exports.getShareholderReportExport = async (req, res) => {
                 report.savingsIncrease,
                 report.savingsCurrentAmount,
                 report.amanatAmount,
-                report.savingsCurrentAmount,
-                report.transferSavings
+                report.transferSavings,
+                report.alraseed,
             ]);
         });
 

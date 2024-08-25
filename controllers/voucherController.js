@@ -1,9 +1,11 @@
 const Voucher = require('../models/voucherSchema');
 const Transaction = require('../models/transactionSchema');
 const Tenant = require('../models/tenantSchema');
+const Building = require('../models/buildingSchema');
 const excel = require('exceljs');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
+const mongoose = require('mongoose');
 
 exports.getAllVouchers = async (req, res) => {
     try {
@@ -15,7 +17,19 @@ exports.getAllVouchers = async (req, res) => {
         let match = {};
 
         if (req.query.buildingId) {
-            match.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
+            try {
+                match.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
+            } catch (error) {
+                console.error('Invalid buildingId format:', req.query.buildingId);
+                return res.status(400).json({ error: 'Invalid buildingId format' });
+            }
+
+            // Verify if the building exists
+            const building = await Building.findById(match.buildingId);
+            if (!building) {
+                console.log('Building not found:', req.query.buildingId);
+                return res.status(404).json({ error: 'Building not found' });
+            }
         }
 
         if (req.query.tenantName) {
@@ -30,7 +44,10 @@ exports.getAllVouchers = async (req, res) => {
             match['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
 
+        console.log('Match object:', JSON.stringify(match));
+
         const pipeline = [
+            { $match: match },
             {
                 $lookup: {
                     from: 'flats',
@@ -67,7 +84,6 @@ exports.getAllVouchers = async (req, res) => {
                 }
             },
             { $unwind: '$buildingId' },
-            { $match: match },
             {
                 $facet: {
                     metadata: [
@@ -83,10 +99,18 @@ exports.getAllVouchers = async (req, res) => {
             }
         ];
 
+        console.log('Aggregation Pipeline:', JSON.stringify(pipeline, null, 2));
+
         const result = await Voucher.aggregate(pipeline);
+
+        console.log('Aggregation result:', JSON.stringify(result, null, 2));
 
         const vouchers = result[0].data;
         const metadata = result[0].metadata[0] || { total: 0, page, resultsPerPage };
+
+        if (vouchers.length === 0) {
+            console.log('No vouchers found for the given criteria');
+        }
 
         res.status(200).json({
             data: vouchers,
