@@ -7,59 +7,91 @@ const moment = require('moment');
 
 exports.getAllVouchers = async (req, res) => {
     try {
-        const page = parseInt(req.query.page, 10) || 0;
+        const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
-        // Create a filter object
-        let filter = {};
+        // Create a match object for filtering
+        let match = {};
 
-        // Filter by building
         if (req.query.buildingId) {
-            filter.buildingId = req.query.buildingId;
+            match.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
         }
 
-        // Filter by tenant name
         if (req.query.tenantName) {
-            filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
+            match['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
         }
 
-        // Filter by civil ID
         if (req.query.civilId) {
-            filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
+            match['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
         }
 
-        // Filter by contact number
         if (req.query.contactNumber) {
-            filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
+            match['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
 
-        const vouchers = await Voucher.find(filter)
-            .populate({
-                path: 'flatId',
-                populate: {
-                    path: 'buildingId',
-                    model: 'Building',
-                },
-            })
-            .populate('tenantId')
-            .populate('buildingId')
-            .sort({
-                $natural: -1
-            })
-            .skip(skip)
-            .limit(resultsPerPage);
+        const pipeline = [
+            {
+                $lookup: {
+                    from: 'flats',
+                    localField: 'flatId',
+                    foreignField: '_id',
+                    as: 'flatId'
+                }
+            },
+            { $unwind: '$flatId' },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'flatId.buildingId',
+                    foreignField: '_id',
+                    as: 'flatId.buildingId'
+                }
+            },
+            { $unwind: '$flatId.buildingId' },
+            {
+                $lookup: {
+                    from: 'tenants',
+                    localField: 'tenantId',
+                    foreignField: '_id',
+                    as: 'tenantId'
+                }
+            },
+            { $unwind: '$tenantId' },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'buildingId',
+                    foreignField: '_id',
+                    as: 'buildingId'
+                }
+            },
+            { $unwind: '$buildingId' },
+            { $match: match },
+            {
+                $facet: {
+                    metadata: [
+                        { $count: 'total' },
+                        { $addFields: { page: page, resultsPerPage: resultsPerPage } }
+                    ],
+                    data: [
+                        { $sort: { voucherNo: -1 } },
+                        { $skip: skip },
+                        { $limit: resultsPerPage }
+                    ]
+                }
+            }
+        ];
 
-        const count = await Voucher.countDocuments(filter);
+        const result = await Voucher.aggregate(pipeline);
+
+        const vouchers = result[0].data;
+        const metadata = result[0].metadata[0] || { total: 0, page, resultsPerPage };
 
         res.status(200).json({
             data: vouchers,
-            count: count,
-            metadata: {
-                total: count,
-                page: page,
-                resultsPerPage: resultsPerPage
-            },
+            count: metadata.total,
+            metadata: metadata
         });
     } catch (error) {
         console.error('Error in getAllVouchers:', error);
