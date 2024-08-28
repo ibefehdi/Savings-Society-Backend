@@ -162,6 +162,30 @@ exports.getShareholdersWithAmanat = async (req, res) => {
         res.status(500).send({ message: err.message });
     }
 };
+exports.changeAlRaseed = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const newBalance = req.body.balance;
+
+        if (typeof newBalance !== 'number' || isNaN(newBalance)) {
+            return res.status(400).json({ message: 'Invalid balance provided' });
+        }
+
+        const shareholder = await Shareholder.findOne({ _id: userId }).populate('savings');
+
+        if (!shareholder) {
+            return res.status(404).json({ message: 'Shareholder not found' });
+        }
+
+        shareholder.savings.alraseed = newBalance;
+        await Saving.findByIdAndUpdate(shareholder.savings._id, { alraseed: newBalance });
+
+        res.status(200).json({ message: 'Balance updated successfully', newBalance });
+    } catch (err) {
+        console.error('Error in changeAlRaseed:', err);
+        res.status(500).json({ message: 'An error occurred while updating the balance' });
+    }
+}
 exports.getAllShareholdersFormatted = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -1416,6 +1440,104 @@ exports.moveSavingsToAmanat = async (req, res) => {
             status: 0,
             response,
             message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Total Increase to Amanat.`
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.moveCurrentSavingsToAmanat = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const userId = req.body.userId;
+        const amountToMove = Number(req.body.amountToMove);
+        const year = new Date().getFullYear().toString();
+        const date = new Date(req.body.date);
+
+        const shareholder = await Shareholder.findById(id).populate({
+            path: 'savings',
+            populate: {
+                path: 'amanat',
+                model: 'Amanat'
+            }
+        }).populate('share');
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings' });
+        }
+
+        const savings = shareholder.savings;
+        const share = shareholder.share;
+
+        // Calculate total available increase
+        const totalIncrease = savings.totalAmount
+
+        // Check if there's enough balance in total increase to move
+        if (amountToMove > totalIncrease) {
+            return res.status(400).send({ status: 2, message: "Insufficient funds in total increase to move." });
+        }
+
+        // Update the savingsIncrease and shareIncrease
+        let remainingToSubtract = amountToMove;
+
+        if (remainingToSubtract <= savings.totalAmount) {
+            savings.totalAmount -= remainingToSubtract;
+            remainingToSubtract = 0;
+        } else {
+            remainingToSubtract -= savings.totalAmount;
+            savings.totalAmount = 0;
+
+        }
+
+        await savings.save();
+
+        // Create or update Amanat
+        let amanat = savings.amanat;
+        if (!amanat) {
+            amanat = new Amanat({
+                amount: amountToMove,
+                withdrawn: false,
+                date: date,
+                year: year
+            });
+        } else {
+            amanat.amount += amountToMove;
+            amanat.year = year;
+        }
+        await amanat.save();
+
+        // Update the shareholder's amanat reference
+        shareholder.savings.amanat = amanat._id;
+        shareholder.lastEditedBy.push(userId);
+        await shareholder.save();
+
+        // Create a transfer log
+        const transferLog = new TransferLog({
+            shareholder: shareholder._id,
+            fromSavings: savings._id,
+            toAmanat: amanat._id,
+            amount: amountToMove,
+            date: date,
+            admin: userId
+        });
+        await transferLog.save();
+
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            share: share,
+            amanat: amanat,
+            amountMoved: amountToMove
+        };
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Total Amount to Amanat.`
         });
 
     } catch (err) {
