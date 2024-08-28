@@ -20,10 +20,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 router.post('/createbooking', upload.single('civilIdDocument'), bookingController.makeABooking)
-router.put('/editbooking', bookingController.editBooking);
+router.put('/editbooking/:id', bookingController.editBooking);
 // router.get('/bookingsbydate', bookingController.getBookingsByHallAndDate);
 router.post('/cancelbooking', bookingController.cancelBooking)
 router.get('/bookingbydate', bookingController.getBookingsByHallAndDate)
 router.get('/bookingbyhall/:hallId', bookingController.getAllBookingsByHall)
 router.get('/bookings/:hallId/export', bookingController.getAllBookingsByHallCSV);
+router.delete('/bookings/:id', bookingController.deleteBooking);
 module.exports = router;

@@ -8,14 +8,20 @@ exports.getAllTenants = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
+        const searchCivilId = req.query.searchCivilId || '';
+        console.log(searchCivilId)
+        let query = {};
+        if (searchCivilId) {
+            query.civilId = { $regex: searchCivilId, $options: 'i' };
+        }
 
-        const tenants = await Tenant.find()
+        const tenants = await Tenant.find(query)
             .populate('flatId')
             .skip(skip)
             .limit(resultsPerPage)
             .lean();
 
-        const count = await Tenant.countDocuments();
+        const count = await Tenant.countDocuments(query);
 
         const tenantsWithFrom = tenants.map(tenant => ({
             ...tenant,
@@ -33,7 +39,6 @@ exports.getAllTenants = async (req, res) => {
             error: error.message,
         });
     }
-
 };
 exports.getAllTenantsCount = async (req, res) => {
     try {
@@ -48,6 +53,21 @@ exports.getAllActiveTenants = async (req, res) => {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
+        const searchCivilId = req.query.searchCivilId || '';
+
+        // Base query for active tenants
+        let query = {
+            $or: [
+                { active: true },
+                { active: { $exists: false } },
+                { active: null }
+            ]
+        };
+
+        // Add civil ID search to the query if provided
+        if (searchCivilId) {
+            query.civilId = { $regex: searchCivilId, $options: 'i' };
+        }
 
         // Add a stable sort
         const sortField = req.query.sortField || 'name';
@@ -55,14 +75,9 @@ exports.getAllActiveTenants = async (req, res) => {
 
         console.log(`Page: ${page}, Results per Page: ${resultsPerPage}, Skip: ${skip}`);
         console.log(`Sort Field: ${sortField}, Sort Order: ${sortOrder}`);
+        console.log(`Search Civil ID: ${searchCivilId}`);
 
-        const activeTenants = await Tenant.find({
-            $or: [
-                { active: true },
-                { active: { $exists: false } },
-                { active: null }
-            ]
-        })
+        const activeTenants = await Tenant.find(query)
             .populate('flatId')
             .skip(skip)
             .sort({ [sortField]: sortOrder, _id: 1 })
@@ -70,13 +85,7 @@ exports.getAllActiveTenants = async (req, res) => {
             .lean()
             .exec();
 
-        const count = await Tenant.countDocuments({
-            $or: [
-                { active: true },
-                { active: { $exists: false } },
-                { active: null }
-            ]
-        });
+        const count = await Tenant.countDocuments(query);
 
         console.log(`Active Tenants: ${activeTenants.length}, Total Count: ${count}`);
 
@@ -171,7 +180,7 @@ exports.editTenant = async (req, res) => {
         if (contactNumber) tenant.contactNumber = contactNumber; // Fixed this line
         if (flatId) tenant.flatId = flatId;
         if (civilId) tenant.civilId = civilId;
-
+        tenant.active = true;
         // Handle civilIdDocument upload
         if (req.files && req.files.civilIdDocument) {
             const file = req.files.civilIdDocument[0];

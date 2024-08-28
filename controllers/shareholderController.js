@@ -1186,7 +1186,7 @@ exports.addSavingsToShareholder = async (req, res) => {
                 { new: true }
             );
         }
-        updatedSavings.totalAmount = updatedSavings.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+        updatedSavings.totalAmount += initialAmount
         await updatedSavings.save();
 
         // Save the updated shareholder record

@@ -135,18 +135,16 @@ exports.cancelBooking = async (req, res) => {
 };
 exports.editBooking = async (req, res) => {
     try {
-        const { bookingId, date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, dateOfEvent } = req.body;
-        console.log(dateOfEvent)
+        const bookingId = req.params.id;
+        const { date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, dateOfEvent } = req.body;
+        console.log("Req Body: ", req.body)
         // Find the booking by ID
-        const booking = await Booking.findById(bookingId).populate('customer');
+        let booking = await Booking.findById(bookingId);
         if (!booking) {
             return res.status(404).json({ message: 'Booking not found' });
         }
+        console.log(booking)
 
-        // Check if the booking is inactive
-        if (!booking.active) {
-            return res.status(400).json({ message: 'Cannot edit a cancelled booking' });
-        }
 
         // Check if a booking already exists for the same day and time (excluding the current booking)
         if (date && startTime && endTime) {
@@ -168,18 +166,21 @@ exports.editBooking = async (req, res) => {
         if (startTime) booking.startTime = startTime;
         if (endTime) booking.endTime = endTime;
         if (rate) booking.rate = rate;
+        if (dateOfEvent) booking.dateOfEvent = dateOfEvent;
+        console.log('Booking update:', booking)
+        // Update the customer fields if provided
+        if (tenantName || tenantContactNumber || tenantCivilId) {
+            const customer = await Tenant.findById(booking.customer);
+            if (tenantName) customer.name = tenantName;
+            if (tenantContactNumber) customer.contactNumber = tenantContactNumber;
+            if (tenantCivilId) customer.civilId = tenantCivilId;
+            await customer.save();
+            console.log("Customer: ", customer)
+        }
 
-        // Update the tenant fields if provided
-        if (tenantName) booking.customer.name = tenantName;
-        if (tenantContactNumber) booking.customer.contactNumber = tenantContactNumber;
-        if (tenantCivilId) booking.customer.civilId = tenantCivilId;
-        // if (tenantType) booking.customer.type = tenantType;
-        if (dateOfEvent) booking.customer.dateOfEvent = dateOfEvent;
-        console.log("This is the date of event: " + dateOfEvent)
-        // Save the updated booking and tenant
-        await booking.customer.save();
+        // Save the updated booking
         await booking.save();
-        console.log(booking)
+
         // Update the associated transaction in the transaction table if rate and date are provided
         if (rate && date) {
             await Transaction.findOneAndUpdate(
@@ -193,16 +194,37 @@ exports.editBooking = async (req, res) => {
             );
         }
 
+        // Fetch the updated booking with populated customer
+        booking = await Booking.findById(bookingId).populate('customer');
+
         res.status(200).json({ message: 'Booking updated successfully', booking });
     } catch (error) {
         console.error('Error editing booking:', error);
         if (error.name === 'ValidationError') {
             res.status(400).json({ error: error.message });
+        } else if (error.name === 'CastError') {
+            res.status(400).json({ error: 'Invalid ID format' });
         } else {
-            res.status(500).json({ message: 'An error occurred while editing the booking' });
+            res.status(500).json({ message: 'An error occurred while editing the booking', error: error.message });
         }
     }
 };
+exports.deleteBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const deletedBooking = await Booking.findByIdAndDelete(id);
+
+        if (!deletedBooking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        res.status(200).json({ message: 'Booking deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting booking', error: error.message });
+    }
+};
+
 exports.getBookingsByHallAndDate = async (req, res) => {
     try {
         const { hallId, date } = req.query;
