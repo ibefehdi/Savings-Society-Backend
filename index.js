@@ -23,6 +23,7 @@ const flatRoutes = require("./routes/flatRoutes");
 const transactionRoutes = require("./routes/transactionRoutes")
 const tenantRoutes = require("./routes/tenantRoutes")
 const contractRoutes = require("./routes/contractRoutes");
+const logRoutes = require("./routes/logRoutes");
 const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
@@ -239,5 +240,7 @@ app.use('/api/v1/', voucherRoutes)
 app.use('/api/v1/', bookingRoutes)
 app.use('/api/v1/', contractRoutes)
 app.use('/api/v1/', tenantRoutes)
+app.use('/api/v1/', logRoutes);
+
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
