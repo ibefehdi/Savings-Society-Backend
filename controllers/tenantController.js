@@ -16,7 +16,12 @@ exports.getAllTenants = async (req, res) => {
         }
 
         const tenants = await Tenant.find(query)
-            .populate('flatId')
+            .populate({
+                path: 'flatId',
+                populate: {
+                    path: 'buildingId'
+                }
+            })
             .skip(skip)
             .limit(resultsPerPage)
             .lean();
@@ -78,7 +83,12 @@ exports.getAllActiveTenants = async (req, res) => {
         console.log(`Search Civil ID: ${searchCivilId}`);
 
         const activeTenants = await Tenant.find(query)
-            .populate('flatId')
+            .populate({
+                path: 'flatId',
+                populate: {
+                    path: 'buildingId'
+                }
+            })
             .skip(skip)
             .sort({ [sortField]: sortOrder, _id: 1 })
             .limit(resultsPerPage)
@@ -108,7 +118,12 @@ exports.getAllActiveTenantsCSV = async (req, res) => {
                 { active: null }
             ]
         })
-            .populate('flatId')
+            .populate({
+                path: 'flatId',
+                populate: {
+                    path: 'buildingId'
+                }
+            })
             .sort({ name: 1, _id: 1 })
             .lean()
             .exec();
