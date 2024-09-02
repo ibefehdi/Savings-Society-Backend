@@ -253,14 +253,16 @@ exports.getBookingsByHallAndDate = async (req, res) => {
 exports.getAllBookingsByHall = async (req, res) => {
     try {
         const { hallId } = req.params;
-
+        const page = parseInt(req.query.page, 10) || 1;
+        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+        const skip = (page - 1) * resultsPerPage;
         // Find all active bookings for the specified hall, sorted by date
         const bookings = await Booking.find({
             hallId,
-
         })
             .sort({ dateOfEvent: -1 }) // Sort by dateOfEvent in descending order
-            .populate('customer');
+            .populate('customer').skip(skip)
+            .limit(resultsPerPage);
         const count = await Booking.countDocuments({ hallId })
         res.status(200).json({
             data: bookings,

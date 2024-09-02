@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Tenant = require('../models/tenantSchema');
 const Address = require('../models/addressSchema');
 const { stringify } = require('csv-stringify');
-
+const Flat = require('../models/flatSchema');
 exports.getAllTenants = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -59,6 +59,9 @@ exports.getAllActiveTenants = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
         const searchCivilId = req.query.searchCivilId || '';
+        const contactNumber = req.query.searchContactNumber || '';
+        const name = req.query.searchName || '';
+        const buildingId = req.query.buildingId || '';
 
         // Base query for active tenants
         let query = {
@@ -69,38 +72,53 @@ exports.getAllActiveTenants = async (req, res) => {
             ]
         };
 
-        // Add civil ID search to the query if provided
+        // Add search criteria to the query
         if (searchCivilId) {
             query.civilId = { $regex: searchCivilId, $options: 'i' };
+        }
+        if (contactNumber) {
+            query.contactNumber = { $regex: contactNumber, $options: 'i' };
+        }
+        if (name) {
+            query.name = { $regex: name, $options: 'i' };
         }
 
         // Add a stable sort
         const sortField = req.query.sortField || 'name';
         const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
-        console.log(`Page: ${page}, Results per Page: ${resultsPerPage}, Skip: ${skip}`);
-        console.log(`Sort Field: ${sortField}, Sort Order: ${sortOrder}`);
-        console.log(`Search Civil ID: ${searchCivilId}`);
+        let tenantQuery = Tenant.find(query);
 
-        const activeTenants = await Tenant.find(query)
-            .populate({
-                path: 'flatId',
-                populate: {
-                    path: 'buildingId'
-                }
-            })
+        // If buildingId is provided, filter by it
+        if (buildingId) {
+            const flatIds = await Flat.find({ buildingId }).distinct('_id');
+            query.flatId = { $in: flatIds };
+        }
+
+        tenantQuery = Tenant.find(query).populate({
+            path: 'flatId',
+            populate: {
+                path: 'buildingId'
+            }
+        });
+
+        const activeTenants = await tenantQuery
             .skip(skip)
             .sort({ [sortField]: sortOrder, _id: 1 })
             .limit(resultsPerPage)
             .lean()
             .exec();
 
+        // Count tenants with the applied filters
         const count = await Tenant.countDocuments(query);
 
         console.log(`Active Tenants: ${activeTenants.length}, Total Count: ${count}`);
-
+        const tenantsWithFrom = activeTenants.map(tenant => ({
+            ...tenant,
+            tenantFrom: tenant.flatId ? "Flat" : "Hall"
+        }));
         res.status(200).json({
-            data: activeTenants,
+            data: tenantsWithFrom,
             count: count,
             metadata: { total: count, page: page, resultsPerPage: resultsPerPage },
         });
@@ -109,6 +127,7 @@ exports.getAllActiveTenants = async (req, res) => {
         res.status(500).json({ message: "Error fetching active tenants", error: error.message });
     }
 };
+
 exports.getAllActiveTenantsCSV = async (req, res) => {
     try {
         const activeTenants = await Tenant.find({
