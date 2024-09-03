@@ -1154,7 +1154,7 @@ exports.addSavingsToShareholder = async (req, res) => {
         if (shareholder.savings && shareholder.savings._id) {
             const savings = await Saving.findById(shareholder.savings._id);
             if (savings) {
-                currentTotalSavings = savings.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+                currentTotalSavings = savings.totalAmount;
             }
         }
 
@@ -1184,23 +1184,19 @@ exports.addSavingsToShareholder = async (req, res) => {
                 ],
                 withdrawn: false,
                 year,
+                totalAmount: initialAmount
             });
 
             // Link the new savings to the shareholder
             shareholder.savings = updatedSavings._id;
         } else {
+            // Find the current savings before update
+            const currentSavings = await Saving.findById(shareholder.savings._id);
+            const oldTotalAmount = currentSavings ? currentSavings.totalAmount : 0;
+
             // Update the existing savings
-            const savings = await Saving.findById(shareholder.savings._id);
-            if (!savings) {
-                return res.status(404).send({ message: "Associated savings not found." });
-            }
-
-            const oldAmount = savings.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
-            const updatedAmount = oldAmount + initialAmount;
-
-            // Update the savings record
             updatedSavings = await Saving.findByIdAndUpdate(
-                savings._id,
+                shareholder.savings._id,
                 {
                     $push: {
                         deposits: {
@@ -1211,27 +1207,26 @@ exports.addSavingsToShareholder = async (req, res) => {
                         },
                         adminId: {
                             adminId,
-                            amountBeforeChange: oldAmount,
+                            amountBeforeChange: oldTotalAmount,
                             timestamp: date,
                         },
                     },
+                    $inc: { totalAmount: initialAmount }
                 },
                 { new: true }
             );
         }
-        updatedSavings.totalAmount += initialAmount
-        await updatedSavings.save();
 
         // Save the updated shareholder record
-        shareholder.savings = updatedSavings;
+        shareholder.savings = updatedSavings._id;
         await shareholder.save();
 
         // Create a new deposit history record
         const depositSavings = {
             shareholder: id,
             savings: updatedSavings._id,
-            previousAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0) - initialAmount,
-            newAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0),
+            previousAmount: updatedSavings.totalAmount - initialAmount,
+            newAmount: updatedSavings.totalAmount,
             admin: adminId,
             type: "Savings",
             depositDate: date,
