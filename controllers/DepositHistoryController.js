@@ -187,8 +187,8 @@ const getDepositHistoryReportExport = async (req, res) => {
 
         // Add headers
         worksheet.addRow([
-            'Members Code', 'Full Name', 'Type', 'Previous Amount', 'New Amount',
-            'Deposit Amount', 'Deposit Date', 'Admin'
+            'رقم العضوية', 'الاسم', 'نوع العملية', 'الرصيد السابق', 'الرصيد الجديد',
+            'قيمة الايداع', 'تاريخ الايداع', 'الادارة'
         ]);
 
         // Add data rows
