@@ -182,8 +182,8 @@ exports.getWithdrawalHistoryReportExport = async (req, res) => {
 
         // Add headers
         worksheet.addRow([
-            'Members Code', 'Full Name', 'Type', 'Previous Amount', 'New Amount',
-            'Withdrawal Amount', 'Withdrawal Date', 'Admin', 'Year'
+            'رقم العضوية', ' الاسم', 'نوع العملية', 'الرصيد السابق', 'الرصيد الجديد',
+             'تاريخ السحب', 'الادارة'
         ]);
 
         // Add data rows
@@ -194,10 +194,8 @@ exports.getWithdrawalHistoryReportExport = async (req, res) => {
                 record.type,
                 record.previousAmount,
                 record.newAmount,
-                record.withdrawalAmount,
                 record.withdrawalDate,
                 record.adminName,
-                record.year
             ]);
         });
 
