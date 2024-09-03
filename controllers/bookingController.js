@@ -318,8 +318,7 @@ exports.getAllBookingsByHallCSV = async (req, res) => {
             columns: [
                 'تاريخ الحجز',
                 'تاريخ الفعالية',
-                'وقت البدء',
-                'وقت الانتهاء',
+
                 'السعر',
                 'اسم العميل',
                 'رقم هاتف العميل',
@@ -336,8 +335,7 @@ exports.getAllBookingsByHallCSV = async (req, res) => {
             const row = {
                 'تاريخ الحجز': moment(booking.date).format('YYYY-MM-DD') || 'N/A',
                 'تاريخ الفعالية': booking.dateOfEvent ? moment(booking.dateOfEvent).format('YYYY-MM-DD') : 'N/A',
-                'وقت البدء': booking.startTime || 'N/A',
-                'وقت الانتهاء': booking.endTime || 'N/A',
+
                 'السعر': booking.rate || 'N/A',
                 'اسم العميل': booking.customer ? booking.customer.name : 'N/A',
                 'رقم هاتف العميل': booking.customer ? booking.customer.contactNumber : 'N/A',

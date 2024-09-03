@@ -182,3 +182,20 @@ exports.getInactiveContracts = async (req, res) => {
         });
     }
 };
+exports.deleteContract = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Find the contract and delete it
+        const deletedContract = await Contract.findByIdAndDelete(id);
+
+        if (!deletedContract) {
+            return res.status(404).json({ message: 'Contract not found' });
+        }
+
+        res.status(200).json({ message: 'Contract deleted successfully', deletedContract });
+    } catch (error) {
+        console.error('Error deleting contract:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
