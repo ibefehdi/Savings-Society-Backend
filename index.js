@@ -154,17 +154,12 @@ schedule.scheduleJob(cronSchedule, async () => {
 });
 async function createVouchers() {
     try {
-        const currentDate = new Date();
-        const fiveDaysLater = new Date(currentDate);
-        fiveDaysLater.setDate(currentDate.getDate() + 5);
-        console.log('current date:', currentDate);
-        console.log('five days later:', fiveDaysLater);
+        const targetDate = new Date();
+        targetDate.setDate(25); // Set to the 25th of the current month
+        console.log('Voucher processing date:', targetDate);
 
-        // Find contracts where the collection day is 5 days away
-        const contracts = await Contract.find({
-            collectionDay: fiveDaysLater.getDate(),
-            expired: false,
-        }).populate('flatId').populate('tenantId');
+        // Find contracts not expired
+        const contracts = await Contract.find().populate('flatId').populate('tenantId');
 
         const vouchers = [];
 
@@ -175,8 +170,8 @@ async function createVouchers() {
                 flatId: contract.flatId._id,
                 tenantId: contract.tenantId._id,
                 pendingDate: {
-                    $gte: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
-                    $lt: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
+                    $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), 1),
+                    $lt: new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1),
                 },
             });
 
@@ -187,7 +182,7 @@ async function createVouchers() {
                     flatId: contract.flatId._id,
                     tenantId: contract.tenantId._id,
                     amount: contract.rentAmount,
-                    pendingDate: fiveDaysLater,
+                    pendingDate: targetDate,
                     status: 'Pending',
                 });
 
@@ -198,8 +193,8 @@ async function createVouchers() {
                     buildingId: contract.flatId.buildingId,
                     flatId: contract.flatId._id,
                     tenantId: contract.tenantId._id,
-                    month: currentDate.getMonth() + 1,
-                    year: currentDate.getFullYear()
+                    month: targetDate.getMonth() + 1,
+                    year: targetDate.getFullYear()
                 });
             }
         }
@@ -215,8 +210,10 @@ async function createVouchers() {
         console.error('Error creating vouchers:', error);
     }
 }
+if (process.env.AUTOMATIC_GENERATION === 'TRUE') {
+    schedule.scheduleJob('59 23 25 * *', createVouchers);
+}
 
-schedule.scheduleJob('* * * * *', createVouchers);
 
 app.use(logRequestsAndResponses);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

@@ -646,6 +646,39 @@ exports.makeUserActive = async (req, res) => {
         res.status(400).send({ status: 0, message: err.message });
     }
 };
+exports.updateShareholderSavings = async (req, res) => {
+    try {
+        const membersCode = req.body.membersCode;
+        const newBalance = req.body.Balance;
+
+        // Find the shareholder based on the membersCode
+        const shareholder = await Shareholder.findOne({ membersCode: membersCode });
+
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: "Shareholder not found" });
+        }
+
+        // Find the savings document associated with the shareholder
+        const savings = await Saving.findById(shareholder.savings);
+
+        if (!savings) {
+            return res.status(404).send({ status: 1, message: "Savings record not found" });
+        }
+
+        // Update the savings totalAmount with the new balance
+        savings.totalAmount = newBalance;
+        await savings.save();
+
+        res.status(200).send({
+            status: 0,
+            message: "Savings updated successfully",
+            savings,
+        });
+    } catch (err) {
+        res.status(400).send({ status: 1, message: err.message });
+    }
+};
+
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
