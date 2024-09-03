@@ -10,9 +10,10 @@ const { stringify } = require('csv-stringify');
 const moment = require('moment');
 exports.makeABooking = async (req, res) => {
     try {
-        const { hallId, date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, tenantType, dateOfEvent } = req.body;
-        console.log(tenantName, tenantContactNumber, tenantCivilId, tenantType, dateOfEvent)
+        const { hallId, date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, tenantType, dateOfEvent, voucherNo } = req.body;
+        console.log(tenantName, tenantContactNumber, tenantCivilId, tenantType, dateOfEvent, voucherNo)
         console.log("Req Body: ", req.body)
+
         // Check if a booking already exists for the same day and time
         const existingBooking = await Booking.findOne({
             hallId,
@@ -54,6 +55,17 @@ exports.makeABooking = async (req, res) => {
 
         const tenant = await Tenant.create(tenantData);
 
+        // Create a new voucher
+        const voucher = new Voucher({
+            buildingId: hallId,
+            tenantId: tenant._id,
+            amount: rate,
+            paidDate: dateOfEvent,
+            status: 'Paid',
+            voucherNo: voucherNo
+        });
+        await voucher.save();
+
         // Create a new booking
         const booking = new Booking({
             hallId,
@@ -64,22 +76,16 @@ exports.makeABooking = async (req, res) => {
             rate,
             active: true,
             customer: tenant._id,
+            voucher: voucher._id  // Link the voucher to the booking
         });
 
         // Save the booking to the database
         await booking.save();
 
         // Populate the customer field in the booking
-        const populatedBooking = await Booking.findById(booking._id).populate('customer');
+        const populatedBooking = await Booking.findById(booking._id).populate('customer').populate('voucher');
         const hall = await Building.findById(hallId);
-        const voucher = new Voucher({
-            buildingId: hallId,
-            tenantId: tenant._id,
-            amount: rate,
-            paidDate: new Date(),
-            status: 'Paid',
-        });
-        await voucher.save();
+
         const transactionFromBooking = new Transaction({
             buildingId: hallId,
             amount: rate,
@@ -136,15 +142,14 @@ exports.cancelBooking = async (req, res) => {
 exports.editBooking = async (req, res) => {
     try {
         const bookingId = req.params.id;
-        const { date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, dateOfEvent } = req.body;
+        const { date, startTime, endTime, rate, tenantName, tenantContactNumber, tenantCivilId, dateOfEvent, voucherNo } = req.body;
         console.log("Req Body: ", req.body)
-        // Find the booking by ID
-        let booking = await Booking.findById(bookingId);
+
+        let booking = await Booking.findById(bookingId).populate('voucher');
         if (!booking) {
             return res.status(404).json({ message: 'Booking not found' });
         }
         console.log(booking)
-
 
         // Check if a booking already exists for the same day and time (excluding the current booking)
         if (date && startTime && endTime) {
@@ -168,6 +173,7 @@ exports.editBooking = async (req, res) => {
         if (rate) booking.rate = rate;
         if (dateOfEvent) booking.dateOfEvent = dateOfEvent;
         console.log('Booking update:', booking)
+
         // Update the customer fields if provided
         if (tenantName || tenantContactNumber || tenantCivilId) {
             const customer = await Tenant.findById(booking.customer);
@@ -176,6 +182,25 @@ exports.editBooking = async (req, res) => {
             if (tenantCivilId) customer.civilId = tenantCivilId;
             await customer.save();
             console.log("Customer: ", customer)
+        }
+
+        // Update or create the voucher
+        if (booking.voucher) {
+            booking.voucher.amount = rate;
+            booking.voucher.paidDate = dateOfEvent;
+            if (voucherNo) booking.voucher.voucherNo = voucherNo;
+            await booking.voucher.save();
+        } else {
+            const newVoucher = new Voucher({
+                buildingId: booking.hallId,
+                tenantId: booking.customer,
+                amount: rate,
+                paidDate: dateOfEvent,
+                status: 'Paid',
+                voucherNo: voucherNo
+            });
+            await newVoucher.save();
+            booking.voucher = newVoucher._id;
         }
 
         // Save the updated booking
@@ -194,8 +219,8 @@ exports.editBooking = async (req, res) => {
             );
         }
 
-        // Fetch the updated booking with populated customer
-        booking = await Booking.findById(bookingId).populate('customer');
+        // Fetch the updated booking with populated customer and voucher
+        booking = await Booking.findById(bookingId).populate('customer').populate('voucher');
 
         res.status(200).json({ message: 'Booking updated successfully', booking });
     } catch (error) {
@@ -234,7 +259,7 @@ exports.getBookingsByHallAndDate = async (req, res) => {
             hallId,
             dateOfEvent: new Date(date),
             active: true
-        }).populate('customer');
+        }).populate('customer').populate('voucher');
         console.log(bookings);
         // Format the bookings data for the timeline
 
@@ -261,7 +286,7 @@ exports.getAllBookingsByHall = async (req, res) => {
             hallId,
         })
             .sort({ dateOfEvent: -1 }) // Sort by dateOfEvent in descending order
-            .populate('customer').skip(skip)
+            .populate('customer').populate('voucher').skip(skip)
             .limit(resultsPerPage);
         const count = await Booking.countDocuments({ hallId })
         res.status(200).json({

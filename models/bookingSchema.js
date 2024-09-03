@@ -9,7 +9,7 @@ const bookingSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    dateOfEvent:{
+    dateOfEvent: {
         type: Date,
     },
     startTime: {
@@ -33,12 +33,13 @@ const bookingSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+    voucher: { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
     updatedAt: {
         type: Date,
         default: Date.now
     },
-    active:{
-        type:Boolean
+    active: {
+        type: Boolean
     }
 })
 module.exports = mongoose.model('Booking', bookingSchema);
