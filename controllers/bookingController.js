@@ -278,19 +278,37 @@ exports.getBookingsByHallAndDate = async (req, res) => {
 exports.getAllBookingsByHall = async (req, res) => {
     try {
         const { hallId } = req.params;
+        const { searchCivilId } = req.query;
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
+
+        // Create the base query
+        let query = { hallId };
+
+        // If civilId is provided, add it to the query
+        if (searchCivilId) {
+            query['customer.civilId'] = searchCivilId;
+        }
+
         // Find all active bookings for the specified hall, sorted by date
-        const bookings = await Booking.find({
-            hallId,
-        })
+        const bookings = await Booking.find(query)
             .sort({ dateOfEvent: -1 }) // Sort by dateOfEvent in descending order
-            .populate('customer').populate('voucher').skip(skip)
+            .populate({
+                path: 'customer',
+                match: searchCivilId ? { civilId: searchCivilId } : {}
+            })
+            .populate('voucher')
+            .skip(skip)
             .limit(resultsPerPage);
-        const count = await Booking.countDocuments({ hallId })
+
+        // Filter out bookings where customer is null (due to civilId mismatch)
+        const filteredBookings = bookings.filter(booking => booking.customer !== null);
+
+        const count = await Booking.countDocuments(query);
+
         res.status(200).json({
-            data: bookings,
+            data: filteredBookings,
             count: count,
             metadata: { total: count },
         });
