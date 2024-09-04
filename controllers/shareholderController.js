@@ -1184,7 +1184,7 @@ exports.addSavingsToShareholder = async (req, res) => {
                 ],
                 withdrawn: false,
                 year,
-                totalAmount: initialAmount
+                alraseed: initialAmount
             });
 
             // Link the new savings to the shareholder
@@ -2203,6 +2203,7 @@ exports.getShareholderFinancials = async (req, res) => {
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
         const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : null
         const totalInterest = Number(shareIncrease) + Number(savingsIncrease)
+        const alraseed = shareholder.savings ? shareholder.savings.alraseed : null
         console.log(shareholder.savings.amanat)
         // Prepare the response.
         const response = {
@@ -2212,7 +2213,8 @@ exports.getShareholderFinancials = async (req, res) => {
             amanat: shareholder.savings && shareholder.savings.amanat ? shareholder.savings.amanat.amount : null,
             savingsIncrease: savingsIncrease || null,
             shareIncrease: shareIncrease || null,
-            totalInterest: totalInterest || null
+            totalInterest: totalInterest || null,
+            alraseed: alraseed || null,
         };
 
         // Return the data to the client.
