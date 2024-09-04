@@ -252,23 +252,55 @@ exports.deleteBooking = async (req, res) => {
 
 exports.getBookingsByHallAndDate = async (req, res) => {
     try {
-        const { hallId, date } = req.query;
-
-        // Find bookings by hall ID and date
-        const bookings = await Booking.findOne({
+        const { hallId, date, searchRate, page = 1, limit = 10, searchCivilId } = req.query;
+        console.log(searchRate)
+        let query = {
             hallId,
-            dateOfEvent: new Date(date),
             active: true
-        }).populate('customer').populate('voucher');
-        console.log(bookings);
-        // Format the bookings data for the timeline
+        };
 
+        if (date) {
+            query.dateOfEvent = new Date(date);
+        }
+
+        if (searchRate) {
+            query.rate = parseInt(searchRate);
+        }
+        console.log(query)
+        if (searchCivilId) {
+            const customer = await Tenant.findOne({ civilId: searchCivilId });
+            if (customer) {
+                query.customer = customer._id;
+            } else {
+                // If no customer found with the given civil ID, return empty result
+                return res.status(200).json({
+                    success: true,
+                    data: [],
+                    totalPages: 0,
+                    currentPage: 1,
+                    totalCount: 0
+                });
+            }
+        }
+
+        const options = {
+            page: parseInt(page, 10),
+            limit: parseInt(limit, 10),
+            populate: ['customer', 'voucher'],
+            sort: { dateOfEvent: 1 }  // Sort by date of event in ascending order
+        };
+
+        const bookings = await Booking.paginate(query, options);
 
         res.status(200).json({
             success: true,
-            data: bookings,
+            data: bookings.docs,
+            totalPages: bookings.totalPages,
+            currentPage: bookings.page,
+            totalCount: bookings.totalDocs
         });
     } catch (error) {
+        console.error("Error in getBookingsByHallAndDate:", error);
         res.status(500).json({
             success: false,
             error: 'Server error',
@@ -278,7 +310,7 @@ exports.getBookingsByHallAndDate = async (req, res) => {
 exports.getAllBookingsByHall = async (req, res) => {
     try {
         const { hallId } = req.params;
-        const { searchCivilId } = req.query;
+        const { searchCivilId, searchRate } = req.query;
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
@@ -289,6 +321,11 @@ exports.getAllBookingsByHall = async (req, res) => {
         // If civilId is provided, add it to the query
         if (searchCivilId) {
             query['customer.civilId'] = searchCivilId;
+        }
+
+        // If rate is provided, add it to the query
+        if (searchRate) {
+            query.rate = parseInt(searchRate);
         }
 
         // Find all active bookings for the specified hall, sorted by date
