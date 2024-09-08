@@ -43,7 +43,15 @@ exports.getAllVouchers = async (req, res) => {
         if (req.query.contactNumber) {
             match['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
-
+        if (req.query.amount) {
+            const amount = parseFloat(req.query.amount);
+            if (!isNaN(amount)) {
+                match.amount = amount;
+            } else {
+                console.error('Invalid amount format:', req.query.amount);
+                return res.status(400).json({ error: 'Invalid amount format' });
+            }
+        }
         console.log('Match object:', JSON.stringify(match));
 
         const pipeline = [
