@@ -1900,7 +1900,129 @@ exports.addToSavings = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+exports.forceApplyIncrement = async (req, res) => {
+    try {
+        const shareholderId = req.params.id;
+        const adminId = req.body.userId;
 
+        const shareholder = await Shareholder.findById(shareholderId).populate('savings').populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
+        }
+
+        let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        // Force calculate current price (which applies the increment)
+        const incrementAmount = await savings.calculateCurrentPrice();
+
+        // Set withdrawn to true
+        savings.withdrawn = true;
+
+        // Update total amount and savingsIncrease
+        // savings.totalAmount += incrementAmount;
+        savings.savingsIncrease += incrementAmount;
+
+        await savings.save();
+        await share.save();
+
+        // Update shareholder's lastEditedBy
+        shareholder.lastEditedBy.push(adminId);
+        await shareholder.save();
+
+        // Prepare response
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            share: share,
+            incrementAmount: incrementAmount
+        };
+
+        const message = `Forced increment of ${incrementAmount} applied to ${shareholder.fName} ${shareholder.lName}'s savings. Withdrawn status set to true. Total savings increase is now ${savings.savingsIncrease}.`;
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
+exports.calculatePotentialIncrement = async (req, res) => {
+    try {
+        const shareholderId = req.params.id;
+
+        const shareholder = await Shareholder.findById(shareholderId).populate('savings').populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
+        }
+
+        let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        let potentialIncrementAmount;
+        let potentialTotalAmount;
+        let potentialSavingsIncrease;
+
+        if (savings.withdrawn) {
+            // If savings are already withdrawn, use the current amount
+            potentialIncrementAmount = 0;
+            potentialTotalAmount = savings.totalAmount;
+            potentialSavingsIncrease = savings.savingsIncrease;
+        } else {
+            // Calculate potential increment amount
+            potentialIncrementAmount = await savings.calculateCurrentPrice();
+            potentialTotalAmount = savings.totalAmount + potentialIncrementAmount;
+            potentialSavingsIncrease = savings.savingsIncrease + potentialIncrementAmount;
+        }
+
+        // Prepare response
+        const response = {
+            shareholder: {
+                id: shareholder._id,
+                fName: shareholder.fName,
+                lName: shareholder.lName
+            },
+            currentValues: {
+                totalAmount: savings.totalAmount,
+                savingsIncrease: savings.savingsIncrease,
+                withdrawn: savings.withdrawn
+            },
+            potentialValues: {
+                totalAmount: savings.totalAmount,
+                savingsIncrease: potentialSavingsIncrease,
+                withdrawn: true
+            },
+            potentialIncrementAmount: potentialIncrementAmount
+        };
+
+        let message;
+        if (savings.withdrawn) {
+            message = `Savings for ${shareholder.fName} ${shareholder.lName} are already withdrawn. No additional increment is applicable.`;
+        } else {
+            message = `Calculated potential increment of ${potentialIncrementAmount} for ${shareholder.fName} ${shareholder.lName}'s savings. No changes have been applied to the database.`;
+        }
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
 async function handleAmanat(shareholder, savings, amountToMove, adminId, date) {
     const year = new Date().getFullYear().toString();
 
