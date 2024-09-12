@@ -6,6 +6,7 @@ const excel = require('exceljs');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const mongoose = require('mongoose');
+const Excel = require('exceljs');
 
 exports.getAllVouchers = async (req, res) => {
     try {
@@ -346,6 +347,20 @@ exports.createVoucher = async (req, res) => {
     try {
         const { buildingId, flatId, tenantId, amount, pendingDate, paidDate, status, voucherNo } = req.body;
 
+        // Validation
+        const errors = {};
+        if (!buildingId) errors.buildingId = 'Building is required';
+        if (!flatId) errors.flatId = 'Flat is required';
+        if (!tenantId) errors.tenantId = 'Tenant is required';
+        if (!amount) errors.amount = 'Amount is required';
+        if (!pendingDate) errors.pendingDate = 'Pending date is required';
+        if (!status) errors.status = 'Status is required';
+        if (!voucherNo) errors.voucherNo = 'Voucher number is required';
+
+        if (Object.keys(errors).length > 0) {
+            return res.status(400).json({ errors });
+        }
+
         // Check if a voucher already exists for the same tenant, flat, and month
         const existingVoucherQuery = {
             buildingId,
@@ -373,7 +388,7 @@ exports.createVoucher = async (req, res) => {
         const existingVoucher = await Voucher.findOne(existingVoucherQuery);
 
         if (existingVoucher) {
-            return res.status(400).json({ error: 'A voucher already exists for this tenant, flat, and month' });
+            return res.status(400).json({ error: 'A voucher already exists for this month', existingVoucher });
         }
 
         const voucherData = {
@@ -399,13 +414,14 @@ exports.createVoucher = async (req, res) => {
         res.status(201).json(createdVoucher);
     } catch (error) {
         console.error('Error creating voucher:', error);
-        res.status(500).json({ error: 'An error occurred while creating the voucher' });
+        res.status(500).json({ error: 'An error occurred while creating the voucher', details: error.message });
     }
 };
 
 exports.deleteVoucher = async (req, res) => {
     try {
         const id = req.params.id;
+        console.log(id)
         await Voucher.deleteOne({ _id: id });
         res.status(200).json({ message: 'Voucher deleted successfully' });
 
@@ -416,9 +432,10 @@ exports.deleteVoucher = async (req, res) => {
     }
 }
 
+
 exports.getAllVouchersFormatted = async (req, res) => {
     try {
-        // Filter logic (keep as is)
+        // Filter logic (kept as is)
         let filter = {};
         if (req.query.buildingId) {
             filter.buildingId = req.query.buildingId;
@@ -444,45 +461,56 @@ exports.getAllVouchersFormatted = async (req, res) => {
             .populate('tenantId')
             .populate('buildingId');
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'رقم الايصال',
-                'اسم المبنى',
-                'رقم الشقة',
-                'اسم المستأجر',
-                'الرقم المدني',
-                'رقم الاتصال',
-                'المبلغ',
-                'تاريخ الاستحقاق',
-                'تاريخ الدفع',
-                'الحالة'
-            ]
-        });
+        const workbook = new Excel.Workbook();
+        const worksheet = workbook.addWorksheet('Vouchers');
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="vouchers.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        worksheet.columns = [
+            { header: 'رقم الايصال', key: 'voucherNo', width: 15 },
+            { header: 'اسم المبنى', key: 'buildingName', width: 20 },
+            { header: 'رقم الشقة', key: 'flatNumber', width: 15 },
+            { header: 'اسم المستأجر', key: 'tenantName', width: 20 },
+            { header: 'الرقم المدني', key: 'civilId', width: 15 },
+            { header: 'رقم الاتصال', key: 'contactNumber', width: 15 },
+            { header: 'المبلغ', key: 'amount', width: 15 },
+            { header: 'تاريخ الاستحقاق', key: 'pendingDate', width: 20 },
+            { header: 'تاريخ الدفع', key: 'paidDate', width: 20 },
+            { header: 'الحالة', key: 'status', width: 15 }
+        ];
+
+        // Style for the header row
+        worksheet.getRow(1).font = { bold: true };
+
+        const formatDate = (date) => {
+            return date ? new Date(date) : null;
+        };
 
         vouchers.forEach((voucher) => {
-            const row = {
-                'رقم الايصال': voucher.voucherNo || 'N/A',
-                'اسم المبنى': voucher.buildingId ? voucher.buildingId.name : 'N/A',
-                'رقم الشقة': voucher.flatId ? voucher.flatId.flatNumber : 'N/A',
-                'اسم المستأجر': voucher.tenantId ? voucher.tenantId.name : 'N/A',
-                'الرقم المدني': voucher.tenantId ? voucher.tenantId.civilId : 'N/A',
-                'رقم الاتصال': voucher.tenantId ? voucher.tenantId.contactNumber : 'N/A',
-                'المبلغ': voucher.amount.toFixed(3),
-                'تاريخ الاستحقاق': voucher.pendingDate ? moment(voucher.pendingDate).format('DD/MM/YYYY') : 'N/A',
-                'تاريخ الدفع': voucher.paidDate ? moment(voucher.paidDate).format('DD/MM/YYYY') : 'N/A',
-                'الحالة': voucher.status
-            };
-
-            csvStringifier.write(row);
+            worksheet.addRow({
+                voucherNo: voucher.voucherNo || 'N/A',
+                buildingName: voucher.buildingId ? voucher.buildingId.name : 'N/A',
+                flatNumber: voucher.flatId ? voucher.flatId.flatNumber : 'N/A',
+                tenantName: voucher.tenantId ? voucher.tenantId.name : 'N/A',
+                civilId: voucher.tenantId ? voucher.tenantId.civilId : 'N/A',
+                contactNumber: voucher.tenantId ? voucher.tenantId.contactNumber : 'N/A',
+                amount: voucher.amount,
+                pendingDate: formatDate(voucher.pendingDate),
+                paidDate: formatDate(voucher.paidDate),
+                status: voucher.status
+            });
         });
 
-        csvStringifier.end();
+        // Apply number format to amount column
+        worksheet.getColumn('amount').numFmt = '#,##0.000';
+
+        // Apply date format to date columns
+        worksheet.getColumn('pendingDate').numFmt = 'dd/mm/yyyy';
+        worksheet.getColumn('paidDate').numFmt = 'dd/mm/yyyy';
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="vouchers.xlsx"');
+
+        await workbook.xlsx.write(res);
+        res.end();
 
     } catch (error) {
         console.error('Error in getAllVouchersFormatted:', error);

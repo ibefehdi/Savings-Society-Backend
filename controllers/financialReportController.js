@@ -493,7 +493,7 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
                 $gte: startDate,
                 $lt: endDate
             },
-            status: 0
+            status: 1
         };
 
         const shareholders = await Shareholder.find(queryConditions).populate('share').populate({

@@ -2284,7 +2284,95 @@ exports.withdrawSavings = async (req, res) => {
         res.status(400).send({ status: 4, message: err.message });
     }
 };
+exports.combinedSavingsWithdrawal = async (req, res) => {
+    try {
+        const shareholderId = req.params.id;
+        const adminId = req.body.adminId;
+        const date = new Date(req.body.date);
+        const year = date.getFullYear();
 
+        const shareholder = await Shareholder.findById(shareholderId).populate('savings').populate('share');
+        if (!shareholder) {
+            return res.status(404).send({ status: 1, message: 'Shareholder not found' });
+        }
+
+        if (!shareholder.savings) {
+            return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
+        }
+
+        let savings = shareholder.savings;
+        let share = shareholder.share;
+
+        // Calculate potential increment
+        let incrementAmount = 0;
+        if (!savings.withdrawn) {
+            incrementAmount = await savings.calculateCurrentPrice();
+            savings.totalAmount += incrementAmount;
+            savings.savingsIncrease += incrementAmount;
+        }
+
+        const totalAmountToWithdraw = savings.totalAmount;
+
+        // Perform full withdrawal
+        savings.deposits.forEach(deposit => {
+            deposit.currentAmount = 0;
+        });
+
+        // Update savings
+        savings.totalAmount = 0;
+        savings.withdrawn = true;
+        savings.year = year;
+        await savings.save();
+
+        // Update shareholder
+        shareholder.lastEditedBy.push(adminId);
+        shareholder.status = 1;
+        shareholder.membershipStatus = 1;
+        shareholder.quitDate = new Date()
+        await shareholder.save();
+
+        // Create withdrawal log
+        const withdrawalLog = new WithdrawalLog({
+            shareholder: shareholder._id,
+            saving: savings._id,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        });
+        await withdrawalLog.save();
+
+        // Create withdrawal history
+        const withdrawalHistory = new WithdrawalHistory({
+            shareholder: shareholderId,
+            savings: savings._id,
+            previousAmount: totalAmountToWithdraw,
+            newAmount: 0,
+            admin: adminId,
+            type: "Savings",
+            withdrawalDate: date
+        });
+        await withdrawalHistory.save();
+
+        // Prepare response
+        const response = {
+            shareholder: shareholder,
+            savings: savings,
+            share: share,
+            incrementAmount: incrementAmount,
+            withdrawnAmount: totalAmountToWithdraw,
+            link: `/printsavingswithdrawal/${shareholder.id}`
+        };
+
+        const message = `Applied increment of ${incrementAmount}. ${shareholder.fName} ${shareholder.lName} has withdrawn their full savings amount of ${totalAmountToWithdraw}. New total amount: 0. Shareholder status and membership status updated to 1.`;
+
+        res.status(200).send({
+            status: 0,
+            response,
+            message
+        });
+
+    } catch (err) {
+        res.status(400).send({ status: 4, message: err.message });
+    }
+};
 exports.getShareholderFinancials = async (req, res) => {
     try {
         const id = req.params.id;
