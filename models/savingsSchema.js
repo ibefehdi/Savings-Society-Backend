@@ -98,7 +98,7 @@ savingsSchema.methods.calculateAdjustedIncrease = async function () {
     const currentMonth = now.getMonth();
     console.log("Current Year: " + currentYear);
     console.log("Current Month: " + currentMonth);
-    
+
     if (this.withdrawn) {
         return 0; // No increase for withdrawn savings
     }
@@ -109,31 +109,31 @@ savingsSchema.methods.calculateAdjustedIncrease = async function () {
         return 0;
     }
     console.log(shareConfig);
-    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+    const annualIncreaseRate = shareConfig.individualSharePercentage;
+    const monthlyIncreaseRate = annualIncreaseRate / 12;
     let totalIncrease = 0;
 
     // Calculate the total initial deposits
     const totalDeposits = this.deposits.reduce((sum, deposit) => sum + deposit.initialAmount, 0);
-    
+
     // Calculate the difference between total amount and total deposits
     const previousYearInterest = this.totalAmount - totalDeposits;
-    
+
     // Calculate increase on previous year's interest
     if (previousYearInterest > 0) {
         const startDate = new Date(currentYear, 0, 1); // January 1st of current year
         const endDate = new Date(currentYear, currentMonth, 0); // Last day of previous month
         const months = (endDate.getMonth() - startDate.getMonth()) + 1;
-        const yearFraction = months / 12;
-        
-        const calculatedAmount = previousYearInterest * Math.pow(1 + annualIncreaseRate, yearFraction);
-        totalIncrease += calculatedAmount - previousYearInterest;
+
+        const interestAmount = previousYearInterest * (monthlyIncreaseRate / 100) * months;
+        totalIncrease += interestAmount;
     }
 
     // Calculate increase on deposits
     for (const deposit of this.deposits) {
         const depositDate = new Date(deposit.date);
-        let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear), 
-                                 depositDate.getFullYear() < currentYear ? 0 : depositDate.getMonth() + 1, 1);
+        let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear),
+            depositDate.getFullYear() < currentYear ? 0 : depositDate.getMonth() + 1, 1);
         let endDate = new Date(currentYear, currentMonth, 0); // End at last day of previous month
 
         if (startDate > endDate) {
@@ -141,11 +141,9 @@ savingsSchema.methods.calculateAdjustedIncrease = async function () {
         }
 
         let months = (endDate.getMonth() - startDate.getMonth()) + 1;
-        let yearFraction = months / 12;
 
-        let calculatedAmount = deposit.initialAmount * Math.pow(1 + annualIncreaseRate, yearFraction);
-        let interestAmount = calculatedAmount - deposit.initialAmount;
-        console.log(calculatedAmount, interestAmount);
+        let interestAmount = deposit.initialAmount * (monthlyIncreaseRate / 100) * months;
+        console.log(`Deposit: ${deposit.initialAmount}, Months: ${months}, Interest: ${interestAmount}`);
 
         totalIncrease += interestAmount;
     }
