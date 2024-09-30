@@ -6,7 +6,7 @@ exports.createTenantAndHistory = async (req, res) => {
     console.log('started');
 
     try {
-        const { name, contactNumber, civilId, flatId } = req.body;
+        const { name, contactNumber, civilId, flatId, startDate, endDate, rentAmount } = req.body;
         console.log(req.body);
 
         // Validate required fields
@@ -34,7 +34,10 @@ exports.createTenantAndHistory = async (req, res) => {
         // Create tenant history
         const tenantHistory = new TenantHistory({
             tenantId: tenant._id,
-            flatId: flatId
+            flatId: flatId,
+            startDate,
+            endDate,
+            rentAmount
         });
 
         await tenantHistory.save();
@@ -74,10 +77,37 @@ exports.getAllTenantHistories = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
+        // Build the filter object
+        const filter = {};
+
+        if (req.query.tenantName) {
+            // Split the name into words and create a regex that matches all words in any order
+            const nameWords = req.query.tenantName.split(' ').filter(word => word.length > 0);
+            const nameRegex = nameWords.map(word => `(?=.*${word})`).join('');
+            filter['tenantId.name'] = new RegExp(nameRegex, 'i');
+        }
+
+        if (req.query.flatNumber) {
+            filter['flatId.flatNumber'] = req.query.flatNumber;
+        }
+
+        if (req.query.buildingId) {
+            filter['flatId.buildingId'] = req.query.buildingId;
+        }
+
+        console.log('Applied filters:', filter);  // Log the final filter object
+
         const tenantHistories = await TenantHistory.find()
-            .populate('tenantId')
+            .populate({
+                path: 'tenantId',
+                match: filter['tenantId.name'] ? { name: filter['tenantId.name'] } : {},
+            })
             .populate({
                 path: 'flatId',
+                match: {
+                    ...(filter['flatId.flatNumber'] && { flatNumber: filter['flatId.flatNumber'] }),
+                    ...(filter['flatId.buildingId'] && { buildingId: filter['flatId.buildingId'] }),
+                },
                 populate: {
                     path: 'buildingId'
                 }
@@ -86,10 +116,13 @@ exports.getAllTenantHistories = async (req, res) => {
             .limit(resultsPerPage)
             .lean();
 
-        const count = await TenantHistory.countDocuments();
+        // Filter out null results from populate
+        const filteredHistories = tenantHistories.filter(history => history.tenantId && history.flatId);
+
+        const count = filteredHistories.length;
 
         res.status(200).json({
-            data: tenantHistories,
+            data: filteredHistories,
             count: count,
             metadata: { total: count },
         });
@@ -206,39 +239,39 @@ exports.getTenantHistoryById = async (req, res) => {
 //     }
 // };
 
-exports.getAllTenantHistories = async (req, res) => {
-    try {
-        const page = parseInt(req.query.page, 10) || 1;
-        const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
-        const skip = (page - 1) * resultsPerPage;
+// exports.getAllTenantHistories = async (req, res) => {
+//     try {
+//         const page = parseInt(req.query.page, 10) || 1;
+//         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
+//         const skip = (page - 1) * resultsPerPage;
 
-        const tenantHistories = await TenantHistory.find()
-            .populate('tenantId')
-            .populate({
-                path: 'flatId',
-                populate: {
-                    path: 'buildingId'
-                }
-            })
-            .skip(skip)
-            .limit(resultsPerPage)
-            .lean();
+//         const tenantHistories = await TenantHistory.find()
+//             .populate('tenantId')
+//             .populate({
+//                 path: 'flatId',
+//                 populate: {
+//                     path: 'buildingId'
+//                 }
+//             })
+//             .skip(skip)
+//             .limit(resultsPerPage)
+//             .lean();
 
-        const count = await TenantHistory.countDocuments();
+//         const count = await TenantHistory.countDocuments();
 
-        res.status(200).json({
-            data: tenantHistories,
-            count: count,
-            metadata: { total: count },
-        });
-    } catch (error) {
-        console.error('Error in getAllTenantHistories:', error);
-        res.status(500).json({
-            message: 'An error occurred while fetching tenant histories',
-            error: error.message,
-        });
-    }
-};
+//         res.status(200).json({
+//             data: tenantHistories,
+//             count: count,
+//             metadata: { total: count },
+//         });
+//     } catch (error) {
+//         console.error('Error in getAllTenantHistories:', error);
+//         res.status(500).json({
+//             message: 'An error occurred while fetching tenant histories',
+//             error: error.message,
+//         });
+//     }
+// };
 
 exports.getTenantHistoryById = async (req, res) => {
     try {

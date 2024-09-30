@@ -1968,20 +1968,17 @@ exports.calculatePotentialIncrement = async (req, res) => {
         }
 
         let savings = shareholder.savings;
-        let share = shareholder.share;
-
+        console.log(savings)
         let potentialIncrementAmount;
         let potentialTotalAmount;
         let potentialSavingsIncrease;
 
         if (savings.withdrawn) {
-            // If savings are already withdrawn, use the current amount
             potentialIncrementAmount = 0;
             potentialTotalAmount = savings.totalAmount;
             potentialSavingsIncrease = savings.savingsIncrease;
         } else {
-            // Calculate potential increment amount
-            potentialIncrementAmount = await savings.calculateCurrentPrice();
+            potentialIncrementAmount = await savings.calculateAdjustedIncrease();
             potentialTotalAmount = savings.totalAmount + potentialIncrementAmount;
             potentialSavingsIncrease = savings.savingsIncrease + potentialIncrementAmount;
         }
@@ -1999,9 +1996,9 @@ exports.calculatePotentialIncrement = async (req, res) => {
                 withdrawn: savings.withdrawn
             },
             potentialValues: {
-                totalAmount: savings.totalAmount,
+                totalAmount: potentialTotalAmount,
                 savingsIncrease: potentialSavingsIncrease,
-                withdrawn: true
+                withdrawn: false
             },
             potentialIncrementAmount: potentialIncrementAmount
         };
@@ -2286,50 +2283,75 @@ exports.withdrawSavings = async (req, res) => {
 };
 exports.combinedSavingsWithdrawal = async (req, res) => {
     try {
+        console.log('Starting combinedSavingsWithdrawal function');
         const shareholderId = req.params.id;
         const adminId = req.body.adminId;
         const date = new Date(req.body.date);
         const year = date.getFullYear();
+        console.log(`shareholderId: ${shareholderId}, adminId: ${adminId}, date: ${date}, year: ${year}`);
 
-        const shareholder = await Shareholder.findById(shareholderId).populate('savings').populate('share');
+        const shareholder = await Shareholder.findById(shareholderId).populate({
+            path: 'savings',
+            populate: {
+                path: 'amanat',
+                model: 'Amanat'
+            }
+        }).populate('share');
+        console.log('Shareholder found:', shareholder);
+
         if (!shareholder) {
+            console.log('Shareholder not found');
             return res.status(404).send({ status: 1, message: 'Shareholder not found' });
         }
 
         if (!shareholder.savings) {
+            console.log('Shareholder has no savings record');
             return res.status(404).send({ status: 1, message: 'Shareholder has no savings record' });
         }
 
         let savings = shareholder.savings;
         let share = shareholder.share;
+        console.log('Initial savings:', savings);
+        console.log('Initial share:', share);
 
         // Calculate potential increment
         let incrementAmount = 0;
         if (!savings.withdrawn) {
             incrementAmount = await savings.calculateCurrentPrice();
-            savings.totalAmount += incrementAmount;
-            savings.savingsIncrease += incrementAmount;
+            console.log('Calculated incrementAmount:', incrementAmount);
         }
 
-        const totalAmountToWithdraw = savings.totalAmount;
+        const totalAmountBeforeWithdrawal = savings.totalAmount;
+        console.log('totalAmountBeforeWithdrawal:', totalAmountBeforeWithdrawal);
 
-        // Perform full withdrawal
-        savings.deposits.forEach(deposit => {
-            deposit.currentAmount = 0;
-        });
+        // Initialize amanat if it doesn't exist
+        if (!savings.amanat) {
+            console.log('Initializing savings.amanat');
+            savings.amanat = { amount: 0 };
+        }
+        console.log('Current savings.amanat before update:', savings.amanat);
+
+        // Move only the increment to amanat
+        savings.amanat.amount += incrementAmount;
+        console.log('Updated savings.amanat after adding increment:', savings.amanat);
 
         // Update savings
         savings.totalAmount = 0;
         savings.withdrawn = true;
         savings.year = year;
+        console.log('Savings before save:', savings);
         await savings.save();
+        await savings.amanat.save();
+        console.log('Savings after save:', savings);
 
         // Update shareholder
         shareholder.lastEditedBy.push(adminId);
         shareholder.status = 1;
         shareholder.membershipStatus = 1;
         shareholder.quitDate = new Date()
+        console.log('Shareholder before save:', shareholder);
         await shareholder.save();
+        console.log('Shareholder after save:', shareholder);
 
         // Create withdrawal log
         const withdrawalLog = new WithdrawalLog({
@@ -2338,18 +2360,20 @@ exports.combinedSavingsWithdrawal = async (req, res) => {
             link: `/printsavingswithdrawal/${shareholder.id}`
         });
         await withdrawalLog.save();
+        console.log('WithdrawalLog created:', withdrawalLog);
 
         // Create withdrawal history
         const withdrawalHistory = new WithdrawalHistory({
             shareholder: shareholderId,
             savings: savings._id,
-            previousAmount: totalAmountToWithdraw,
+            previousAmount: totalAmountBeforeWithdrawal,
             newAmount: 0,
             admin: adminId,
             type: "Savings",
             withdrawalDate: date
         });
         await withdrawalHistory.save();
+        console.log('WithdrawalHistory created:', withdrawalHistory);
 
         // Prepare response
         const response = {
@@ -2357,19 +2381,23 @@ exports.combinedSavingsWithdrawal = async (req, res) => {
             savings: savings,
             share: share,
             incrementAmount: incrementAmount,
-            withdrawnAmount: totalAmountToWithdraw,
+            withdrawnAmount: totalAmountBeforeWithdrawal,
+            newAmanatAmount: savings.amanat.amount,
             link: `/printsavingswithdrawal/${shareholder.id}`
         };
+        console.log('Response prepared:', response);
 
-        const message = `Applied increment of ${incrementAmount}. ${shareholder.fName} ${shareholder.lName} has withdrawn their full savings amount of ${totalAmountToWithdraw}. New total amount: 0. Shareholder status and membership status updated to 1.`;
+        const message = `Estimated increase of ${incrementAmount} moved to amanat. ${shareholder.fName} ${shareholder.lName} has withdrawn their savings amount of ${totalAmountBeforeWithdrawal}. New total amount: 0. New amanat amount: ${savings.amanat.amount}. Shareholder status and membership status updated to 1.`;
+        console.log('Message:', message);
 
+        console.log('Sending response');
         res.status(200).send({
             status: 0,
             response,
             message
         });
-
     } catch (err) {
+        console.error('Error in combinedSavingsWithdrawal:', err);
         res.status(400).send({ status: 4, message: err.message });
     }
 };

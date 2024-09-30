@@ -12,6 +12,7 @@ const shareholderRoutes = require("./routes/shareholderRoutes");
 const shareConfigRoutes = require("./routes/shareConfigRoutes");
 const savingConfigRoutes = require("./routes/savingsConfigRoutes");
 const tenantHistoryRoutes = require("./routes/tenantHistoryRoutes");
+const shareholderFinanceHistoryRoutes = require("./routes/shareholderFinanceHistoryRoutes");
 
 const receiptVoucherSerialRoutes = require("./routes/receiptVoucherSerialRoutes");
 const financialReportRoutes = require("./routes/financialReportRoutes");
@@ -241,6 +242,7 @@ app.use('/api/v1/', contractRoutes)
 app.use('/api/v1/', tenantRoutes)
 app.use('/api/v1/', logRoutes);
 app.use('/api/v1/', tenantHistoryRoutes)
+app.use('/api/v1/', shareholderFinanceHistoryRoutes)
 
 app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
