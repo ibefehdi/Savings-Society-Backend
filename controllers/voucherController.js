@@ -7,115 +7,72 @@ const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const mongoose = require('mongoose');
 const Excel = require('exceljs');
-
 exports.getAllVouchers = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
-        // Create a match object for filtering
-        let match = {};
+        // Create a filter object
+        let filter = {};
 
         if (req.query.buildingId) {
             try {
-                match.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
+                filter.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
+
+                // Verify if the building exists
+                const building = await Building.findById(filter.buildingId);
+                if (!building) {
+                    console.log('Building not found:', req.query.buildingId);
+                    return res.status(404).json({ error: 'Building not found' });
+                }
             } catch (error) {
                 console.error('Invalid buildingId format:', req.query.buildingId);
                 return res.status(400).json({ error: 'Invalid buildingId format' });
             }
-
-            // Verify if the building exists
-            const building = await Building.findById(match.buildingId);
-            if (!building) {
-                console.log('Building not found:', req.query.buildingId);
-                return res.status(404).json({ error: 'Building not found' });
-            }
         }
 
         if (req.query.tenantName) {
-            match['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
+            filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
         }
 
         if (req.query.civilId) {
-            match['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
+            filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
         }
 
         if (req.query.contactNumber) {
-            match['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
+            filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
+
         if (req.query.amount) {
             const amount = parseFloat(req.query.amount);
             if (!isNaN(amount)) {
-                match.amount = amount;
+                filter.amount = amount;
             } else {
                 console.error('Invalid amount format:', req.query.amount);
                 return res.status(400).json({ error: 'Invalid amount format' });
             }
         }
-        console.log('Match object:', JSON.stringify(match));
 
-        const pipeline = [
-            { $match: match },
-            {
-                $lookup: {
-                    from: 'flats',
-                    localField: 'flatId',
-                    foreignField: '_id',
-                    as: 'flatId'
-                }
-            },
-            { $unwind: '$flatId' },
-            {
-                $lookup: {
-                    from: 'buildings',
-                    localField: 'flatId.buildingId',
-                    foreignField: '_id',
-                    as: 'flatId.buildingId'
-                }
-            },
-            { $unwind: '$flatId.buildingId' },
-            {
-                $lookup: {
-                    from: 'tenants',
-                    localField: 'tenantId',
-                    foreignField: '_id',
-                    as: 'tenantId'
-                }
-            },
-            { $unwind: '$tenantId' },
-            {
-                $lookup: {
-                    from: 'buildings',
-                    localField: 'buildingId',
-                    foreignField: '_id',
-                    as: 'buildingId'
-                }
-            },
-            { $unwind: '$buildingId' },
-            {
-                $facet: {
-                    metadata: [
-                        { $count: 'total' },
-                        { $addFields: { page: page, resultsPerPage: resultsPerPage } }
-                    ],
-                    data: [
-                        { $sort: { voucherNo: -1 } },
-                        { $skip: skip },
-                        { $limit: resultsPerPage }
-                    ]
-                }
-            }
-        ];
+        console.log('Filter:', JSON.stringify(filter, (key, value) =>
+            value instanceof mongoose.Types.ObjectId ? value.toString() : value
+        ));
 
-        console.log('Aggregation Pipeline:', JSON.stringify(pipeline, null, 2));
+        // Fetch vouchers
+        const vouchers = await Voucher.find(filter)
+            .populate('buildingId')
+            .populate('flatId')
+            .populate('tenantId')
+            .sort({ voucherNo: -1 })
+            .skip(skip)
+            .limit(resultsPerPage)
+            .lean();
 
-        const result = await Voucher.aggregate(pipeline);
+        // Get total count
+        const totalCount = await Voucher.countDocuments(filter);
 
-        console.log('Aggregation result:', JSON.stringify(result, null, 2));
-
-        const vouchers = result[0].data;
-        const metadata = result[0].metadata[0] || { total: 0, page, resultsPerPage };
+        console.log('Vouchers found:', vouchers.length);
+        console.log('Total count:', totalCount);
 
         if (vouchers.length === 0) {
             console.log('No vouchers found for the given criteria');
@@ -123,8 +80,12 @@ exports.getAllVouchers = async (req, res) => {
 
         res.status(200).json({
             data: vouchers,
-            count: metadata.total,
-            metadata: metadata
+            count: totalCount,
+            metadata: {
+                total: totalCount,
+                page: page,
+                resultsPerPage: resultsPerPage
+            }
         });
     } catch (error) {
         console.error('Error in getAllVouchers:', error);

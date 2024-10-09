@@ -1,67 +1,81 @@
 const Contract = require('../models/contractSchema')
 const ContractHistory = require('../models/contractHistorySchema')
+const Flat = require('../models/flatSchema');
+const Tenant = require('../models/tenantSchema');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
-
 exports.getAllContracts = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
-        // Build the match stage for filtering
-        const matchStage = {};
-
-        if (req.query.flatId) {
-            matchStage.flatId = new mongoose.Types.ObjectId(req.query.flatId);
-        }
-
-        if (req.query.tenantId) {
-            matchStage.tenantId = new mongoose.Types.ObjectId(req.query.tenantId);
-        }
+        // Build the filter object
+        const filter = {};
 
         if (req.query.startDate || req.query.endDate) {
-            matchStage.startDate = {};
+            filter.startDate = {};
             if (req.query.startDate) {
-                matchStage.startDate.$gte = new Date(req.query.startDate);
+                filter.startDate.$gte = new Date(req.query.startDate);
             }
             if (req.query.endDate) {
-                matchStage.startDate.$lte = new Date(req.query.endDate);
+                filter.startDate.$lte = new Date(req.query.endDate);
             }
         }
 
         if (req.query.rentAmount) {
-            matchStage.rentAmount = parseFloat(req.query.rentAmount);
+            filter.rentAmount = parseFloat(req.query.rentAmount);
         }
 
-        const aggregationPipeline = [
-            { $match: matchStage },
-            { $sort: { expired: -1, startDate: -1 } },
-            { $skip: skip },
-            { $limit: resultsPerPage },
-            {
-                $lookup: {
-                    from: 'flats',
-                    localField: 'flatId',
-                    foreignField: '_id',
-                    as: 'flatId'
-                }
-            },
-            { $unwind: { path: '$flatId', preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: 'tenants',
-                    localField: 'tenantId',
-                    foreignField: '_id',
-                    as: 'tenantId'
-                }
-            },
-            { $unwind: '$tenantId' }
-        ];
+        // Find the flat ID based on flatNumber if flatId query is provided
+        if (req.query.flatId) {
+            const flat = await Flat.findOne({ flatNumber: req.query.flatId });
+            if (flat) {
+                filter.flatId = flat._id;
+            } else {
+                // If no flat found with the given number, return empty result
+                return res.status(200).json({
+                    data: [],
+                    count: 0,
+                    metadata: {
+                        total: 0,
+                        page: page,
+                        resultsPerPage: resultsPerPage,
+                        totalPages: 0
+                    },
+                });
+            }
+        }
+
+        // Find the tenant ID based on name if tenantId query is provided
+        if (req.query.tenantId) {
+            const tenant = await Tenant.findOne({ name: new RegExp(req.query.tenantId, 'i') });
+            if (tenant) {
+                filter.tenantId = tenant._id;
+            } else {
+                // If no tenant found with the given name, return empty result
+                return res.status(200).json({
+                    data: [],
+                    count: 0,
+                    metadata: {
+                        total: 0,
+                        page: page,
+                        resultsPerPage: resultsPerPage,
+                        totalPages: 0
+                    },
+                });
+            }
+        }
 
         const [contracts, totalCount] = await Promise.all([
-            Contract.aggregate(aggregationPipeline),
-            Contract.countDocuments(matchStage)
+            Contract.find(filter)
+                .sort({ expired: -1, startDate: -1 })
+                .skip(skip)
+                .limit(resultsPerPage)
+                .populate('flatId')
+                .populate('tenantId')
+                .lean(),
+            Contract.countDocuments(filter)
         ]);
 
         const totalPages = Math.ceil(totalCount / resultsPerPage);
