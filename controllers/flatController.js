@@ -6,6 +6,7 @@ const Contract = require('../models/contractSchema');
 const path = require('path');
 const fs = require('fs');
 const { stringify } = require('csv-stringify');
+const ExcelJS = require('exceljs');
 
 const ContractHistory = require('../models/contractHistorySchema')
 exports.createFlat = async (req, res) => {
@@ -574,7 +575,6 @@ exports.getFlatsByBuildingId = async (req, res) => {
 exports.getFlatsByBuildingIdFormatted = async (req, res) => {
     try {
         const buildingId = req.params.buildingId;
-
         const flats = await Flat.aggregate([
             {
                 $match: {
@@ -610,47 +610,70 @@ exports.getFlatsByBuildingIdFormatted = async (req, res) => {
         const flatsWithContracts = await Promise.all(
             flats.map(async (flat) => {
                 const contract = await Contract.findOne({ flatId: flat._id });
-                return {
-                    ...flat,
-                    contract: contract,
-                };
+                return { ...flat, contract: contract };
             })
         );
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'رقم الشقة',
-                'رقم الطابق',
-                'اسم المستأجر',
-                // 'رقم العقد',
-                'تاريخ بداية العقد',
-                'تاريخ نهاية العقد',
-                'قيمة الإيجار'
-            ]
-        });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Flats');
+        const formatDate = (date) => {
+            if (!date) return 'N/A';
+            const d = new Date(date);
+            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+        };
+        worksheet.columns = [
+            { header: 'رقم الشقة', key: 'flatNumber', width: 15 },
+            { header: 'رقم الطابق', key: 'floorNumber', width: 15 },
+            { header: 'اسم المستأجر', key: 'tenantName', width: 20 },
+            { header: 'تاريخ بداية العقد', key: 'startDate', width: 20 },
+            { header: 'تاريخ نهاية العقد', key: 'endDate', width: 20 },
+            { header: 'قيمة الإيجار', key: 'rentAmount', width: 15 }
+        ];
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="flats.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        let totalRentAmount = 0;
 
         flatsWithContracts.forEach((flat) => {
-            const row = {
-                'رقم الشقة': flat.flatNumber || 'N/A',
-                'رقم الطابق': flat.floorNumber || 'N/A',
-                'اسم المستأجر': flat.tenant ? `${flat.tenant.name} ` : 'N/A',
-                // 'رقم العقد': flat.contract ? flat.contract.contractNumber : 'N/A',
-                'تاريخ بداية العقد': flat.contract ? new Date(flat.contract.startDate).toLocaleDateString('ar-EG') : 'N/A',
-                'تاريخ نهاية العقد': flat.contract ? new Date(flat.contract.endDate).toLocaleDateString('ar-EG') : 'N/A',
-                'قيمة الإيجار': flat.contract ? flat.contract.rentAmount : 'N/A'
-            };
+            const rentAmount = flat.contract ? flat.contract.rentAmount : 0;
+            totalRentAmount += rentAmount;
 
-            csvStringifier.write(row);
+            worksheet.addRow({
+                flatNumber: flat.flatNumber || 'N/A',
+                floorNumber: flat.floorNumber || 'N/A',
+                tenantName: flat.tenant ? `${flat.tenant.name}` : 'N/A',
+                startDate: flat.contract ? formatDate(flat.contract.startDate) : 'N/A',
+                endDate: flat.contract ? formatDate(flat.contract.endDate) : 'N/A',
+                rentAmount: rentAmount || 'N/A'
+            });
         });
 
-        csvStringifier.end();
+        // Add grand total row
+        worksheet.addRow({
+            flatNumber: '',
+            floorNumber: '',
+            tenantName: '',
+            startDate: '',
+            endDate: 'المجموع الكلي',
+            rentAmount: totalRentAmount
+        });
 
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Style the grand total row
+        const lastRow = worksheet.lastRow;
+        lastRow.font = { bold: true };
+        lastRow.getCell('endDate').alignment = { horizontal: 'right' };
+        lastRow.getCell('rentAmount').alignment = { horizontal: 'left' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [{ rightToLeft: true }];
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="flats.xlsx"');
+        res.send(buffer);
     } catch (error) {
         console.error("Error exporting flats:", error);
         res.status(500).json({ error: "An error occurred while exporting flats" });

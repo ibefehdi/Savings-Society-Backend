@@ -4,6 +4,8 @@ const Flat = require('../models/flatSchema');
 const Tenant = require('../models/tenantSchema');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
+const ExcelJS = require('exceljs');
+
 exports.getAllContracts = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -117,43 +119,77 @@ exports.getContractsCSV = async (req, res) => {
             return res.status(400).json({ message: "Invalid status parameter" });
         }
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'رقم الشقة',
-                'اسم المستأجر',
-                'تاريخ البدء',
-                'تاريخ الانتهاء',
-                'قيمة الإيجار',
-                'الحالة',
-                'يوم التحصيل'
-            ]
-        });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Contracts');
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="contracts.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        worksheet.columns = [
+            { header: 'رقم الشقة', key: 'flatNumber', width: 15 },
+            { header: 'اسم المستأجر', key: 'tenantName', width: 20 },
+            { header: 'تاريخ البدء', key: 'startDate', width: 15 },
+            { header: 'تاريخ الانتهاء', key: 'endDate', width: 15 },
+            { header: 'قيمة الإيجار', key: 'rentAmount', width: 15 },
+            { header: 'الحالة', key: 'status', width: 15 },
+            { header: 'يوم التحصيل', key: 'collectionDay', width: 15 }
+        ];
 
+        // Function to format date as dd/mm/yyyy
+        const formatDate = (date) => {
+            if (!date) return 'N/A';
+            return moment(date).format('DD/MM/YYYY');
+        };
+
+        let totalRentAmount = 0;
+
+        // Add data rows
         contracts.forEach((contract) => {
-            const row = {
-                'رقم الشقة': contract.flatId ? contract.flatId.flatNumber : 'N/A',
-                'اسم المستأجر': contract.tenantId ? contract.tenantId.name : 'N/A',
-                'تاريخ البدء': moment(contract.startDate).format('YYYY-MM-DD'),
-                'تاريخ الانتهاء': moment(contract.endDate).format('YYYY-MM-DD'),
-                'قيمة الإيجار': contract.rentAmount || 'N/A',
-                'الحالة': status === 'active' ? 'نشط' : 'غير نشط',
-                'يوم التحصيل': contract.collectionDay || 'N/A'
-            };
+            const rentAmount = contract.rentAmount || 0;
+            totalRentAmount += rentAmount;
 
-            csvStringifier.write(row);
+            worksheet.addRow({
+                flatNumber: contract.flatId ? contract.flatId.flatNumber : 'N/A',
+                tenantName: contract.tenantId ? contract.tenantId.name : 'N/A',
+                startDate: formatDate(contract.startDate),
+                endDate: formatDate(contract.endDate),
+                rentAmount: rentAmount,
+                status: status === 'active' ? 'نشط' : 'غير نشط',
+                collectionDay: contract.collectionDay || 'N/A'
+            });
         });
 
-        csvStringifier.end();
+        // Add total row
+        worksheet.addRow({
+            flatNumber: '',
+            tenantName: '',
+            startDate: '',
+            endDate: '',
+            rentAmount: totalRentAmount,
+            status: 'المجموع الكلي',
+            collectionDay: ''
+        });
 
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Style the total row
+        const lastRow = worksheet.lastRow;
+        lastRow.font = { bold: true };
+        lastRow.getCell('status').alignment = { horizontal: 'right' };
+        lastRow.getCell('rentAmount').alignment = { horizontal: 'left' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [
+            { rightToLeft: true }
+        ];
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="contracts.xlsx"');
+        res.send(buffer);
     } catch (error) {
-        console.error("Error exporting contracts to CSV:", error);
-        res.status(500).json({ message: "Error exporting contracts to CSV", error: error.message });
+        console.error("Error exporting contracts to XLSX:", error);
+        res.status(500).json({ message: "Error exporting contracts to XLSX", error: error.message });
     }
 };
 exports.getActiveContracts = async (req, res) => {

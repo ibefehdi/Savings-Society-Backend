@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Building = require('../models/buildingSchema');
 const Address = require('../models/addressSchema');
 const { stringify } = require('csv-stringify');
+const ExcelJS = require('exceljs');
 
 exports.createBuilding = async (req, res) => {
     try {
@@ -50,35 +51,50 @@ exports.getAllBuildingsFormatted = async (req, res) => {
             .populate('address')
             .lean();
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'رقم المبنى',
-                'اسم المبنى',
-                'عدد الطوابق',
-                'النوع',
-                'العنوان'
-            ]
-        });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Buildings');
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="buildings.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        worksheet.columns = [
+            { header: 'رقم المبنى', key: 'buildingNo', width: 15 },
+            { header: 'اسم المبنى', key: 'buildingName', width: 20 },
+            { header: 'عدد الطوابق', key: 'floors', width: 15 },
+            { header: 'النوع', key: 'type', width: 15 },
+            { header: 'العنوان', key: 'address', width: 30 }
+        ];
 
+        // Function to format date as dd/mm/yyyy (if needed in the future)
+        const formatDate = (date) => {
+            if (!date) return 'N/A';
+            const d = new Date(date);
+            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+        };
+
+        // Add data rows
         buildings.forEach((building) => {
-            const row = {
-                'رقم المبنى': building.no || 'N/A',
-                'اسم المبنى': building.name || 'N/A',
-                'عدد الطوابق': building.floors || 'N/A',
-                'النوع': building.type || 'N/A',
-                'العنوان': building.address ? `Block ${building.address.block}, Street ${building.address.street}, House ${building.address.house}` : 'N/A'
-            };
-
-            csvStringifier.write(row);
+            worksheet.addRow({
+                buildingNo: building.no || 'N/A',
+                buildingName: building.name || 'N/A',
+                floors: building.floors || 'N/A',
+                type: building.type || 'N/A',
+                address: building.address ? `Block ${building.address.block}, Street ${building.address.street}, House ${building.address.house}` : 'N/A'
+            });
         });
 
-        csvStringifier.end();
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [
+            { rightToLeft: true }
+        ];
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="buildings.xlsx"');
+        res.send(buffer);
 
     } catch (err) {
         res.status(500).send({ message: err.message });

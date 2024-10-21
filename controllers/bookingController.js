@@ -7,6 +7,7 @@ const Voucher = require('../models/voucherSchema')
 const path = require('path');
 const fs = require('fs');
 const { stringify } = require('csv-stringify');
+const ExcelJS = require('exceljs');
 const moment = require('moment');
 exports.makeABooking = async (req, res) => {
     try {
@@ -357,10 +358,10 @@ exports.getAllBookingsByHall = async (req, res) => {
         });
     }
 };
+
 exports.getAllBookingsByHallCSV = async (req, res) => {
     try {
         const { hallId } = req.params;
-
         const bookings = await Booking.find({ hallId })
             .sort({ dateOfEvent: -1 })
             .populate('customer')
@@ -368,42 +369,73 @@ exports.getAllBookingsByHallCSV = async (req, res) => {
             .lean()
             .exec();
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'تاريخ الحجز',
-                'تاريخ الفعالية',
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Hall Bookings');
 
-                'السعر',
-                'اسم العميل',
-                'رقم هاتف العميل',
-                'اسم القاعة'
-            ]
-        });
+        worksheet.columns = [
+            { header: 'تاريخ الحجز', key: 'bookingDate', width: 15 },
+            { header: 'تاريخ الفعالية', key: 'eventDate', width: 15 },
+            { header: 'السعر', key: 'price', width: 15 },
+            { header: 'اسم العميل', key: 'customerName', width: 20 },
+            { header: 'رقم هاتف العميل', key: 'customerPhone', width: 20 },
+            { header: 'اسم القاعة', key: 'hallName', width: 20 }
+        ];
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="hall_bookings.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        // Function to format date as dd/mm/yyyy
+        const formatDate = (date) => {
+            if (!date) return 'N/A';
+            return moment(date).format('DD/MM/YYYY');
+        };
 
+        let totalAmount = 0;
+
+        // Add data rows
         bookings.forEach((booking) => {
-            const row = {
-                'تاريخ الحجز': moment(booking.date).format('YYYY-MM-DD') || 'N/A',
-                'تاريخ الفعالية': booking.dateOfEvent ? moment(booking.dateOfEvent).format('YYYY-MM-DD') : 'N/A',
+            const price = booking.rate || 0;
+            totalAmount += price;
 
-                'السعر': booking.rate || 'N/A',
-                'اسم العميل': booking.customer ? booking.customer.name : 'N/A',
-                'رقم هاتف العميل': booking.customer ? booking.customer.contactNumber : 'N/A',
-                'اسم القاعة': booking.hallId ? booking.hallId.name : 'N/A'
-            };
-
-            csvStringifier.write(row);
+            worksheet.addRow({
+                bookingDate: formatDate(booking.date),
+                eventDate: formatDate(booking.dateOfEvent),
+                price: price || 'N/A',
+                customerName: booking.customer ? booking.customer.name : 'N/A',
+                customerPhone: booking.customer ? booking.customer.contactNumber : 'N/A',
+                hallName: booking.hallId ? booking.hallId.name : 'N/A'
+            });
         });
 
-        csvStringifier.end();
+        // Add total row
+        worksheet.addRow({
+            bookingDate: '',
+            eventDate: '',
+            price: totalAmount,
+            customerName: '',
+            customerPhone: '',
+            hallName: 'المجموع الكلي'
+        });
 
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Style the total row
+        const lastRow = worksheet.lastRow;
+        lastRow.font = { bold: true };
+        lastRow.getCell('hallName').alignment = { horizontal: 'right' };
+        lastRow.getCell('price').alignment = { horizontal: 'left' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [
+            { rightToLeft: true }
+        ];
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="hall_bookings.xlsx"');
+        res.send(buffer);
     } catch (error) {
-        console.error("Error exporting hall bookings to CSV:", error);
-        res.status(500).json({ message: "Error exporting hall bookings to CSV", error: error.message });
+        console.error("Error exporting hall bookings to XLSX:", error);
+        res.status(500).json({ message: "Error exporting hall bookings to XLSX", error: error.message });
     }
 };

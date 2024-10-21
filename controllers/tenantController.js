@@ -3,6 +3,8 @@ const Tenant = require('../models/tenantSchema');
 const Address = require('../models/addressSchema');
 const { stringify } = require('csv-stringify');
 const Flat = require('../models/flatSchema');
+const ExcelJS = require('exceljs');
+
 exports.getAllTenants = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -152,41 +154,51 @@ exports.getAllActiveTenantsCSV = async (req, res) => {
             .lean()
             .exec();
 
-        const csvStringifier = stringify({
-            header: true,
-            columns: [
-                'اسم المستأجر',
-                'رقم الاتصال',
-                'الرقم المدني',
-                'رقم الشقة',
-                'رقم الطابق',
-                'اسم المبنى'
-            ]
-        });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Active Tenants');
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', 'attachment; filename="active_tenants.csv"');
-        res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
+        worksheet.columns = [
+            { header: 'اسم المستأجر', key: 'name', width: 20 },
+            { header: 'رقم الاتصال', key: 'contactNumber', width: 15 },
+            { header: 'الرقم المدني', key: 'civilId', width: 15 },
+            { header: 'رقم الشقة', key: 'flatNumber', width: 12 },
+            { header: 'رقم الطابق', key: 'floorNumber', width: 12 },
+            { header: 'اسم المبنى', key: 'buildingName', width: 20 }
+        ];
 
+        // Add data rows
         activeTenants.forEach((tenant) => {
             if (tenant.flatId) {
-                const row = {
-                    'اسم المستأجر': tenant.name || 'N/A',
-                    'رقم الاتصال': tenant.contactNumber || 'N/A',
-                    'الرقم المدني': tenant.civilId || 'N/A',
-                    'رقم الشقة': tenant.flatId.flatNumber || 'N/A',
-                    'رقم الطابق': tenant.flatId.floorNumber || 'N/A',
-                    'اسم المبنى': tenant.flatId.buildingId ? tenant.flatId.buildingId.name : 'N/A'
-                };
-                csvStringifier.write(row);
+                worksheet.addRow({
+                    name: tenant.name || 'N/A',
+                    contactNumber: tenant.contactNumber || 'N/A',
+                    civilId: tenant.civilId || 'N/A',
+                    flatNumber: tenant.flatId.flatNumber || 'N/A',
+                    floorNumber: tenant.flatId.floorNumber || 'N/A',
+                    buildingName: tenant.flatId.buildingId ? tenant.flatId.buildingId.name : 'N/A'
+                });
             }
         });
 
-        csvStringifier.end();
+        // Style the header row
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [
+            { rightToLeft: true }
+        ];
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="active_tenants.xlsx"');
+        res.send(buffer);
+
     } catch (error) {
-        console.error("Error exporting active tenants to CSV:", error);
-        res.status(500).json({ message: "Error exporting active tenants to CSV", error: error.message });
+        console.error("Error exporting active tenants to XLSX:", error);
+        res.status(500).json({ message: "Error exporting active tenants to XLSX", error: error.message });
     }
 };
 

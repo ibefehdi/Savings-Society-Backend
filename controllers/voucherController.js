@@ -6,7 +6,7 @@ const excel = require('exceljs');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const mongoose = require('mongoose');
-const Excel = require('exceljs');
+const ExcelJS = require('exceljs');
 exports.getAllVouchers = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -422,7 +422,7 @@ exports.getAllVouchersFormatted = async (req, res) => {
             .populate('tenantId')
             .populate('buildingId');
 
-        const workbook = new Excel.Workbook();
+        const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Vouchers');
 
         worksheet.columns = [
@@ -438,12 +438,20 @@ exports.getAllVouchersFormatted = async (req, res) => {
             { header: 'الحالة', key: 'status', width: 15 }
         ];
 
-        // Style for the header row
+        // Style the header row
         worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Set text direction for the entire sheet to RTL
+        worksheet.views = [
+            { rightToLeft: true }
+        ];
 
         const formatDate = (date) => {
             return date ? new Date(date) : null;
         };
+
+        let grandTotal = 0;
 
         vouchers.forEach((voucher) => {
             worksheet.addRow({
@@ -458,7 +466,25 @@ exports.getAllVouchersFormatted = async (req, res) => {
                 paidDate: formatDate(voucher.paidDate),
                 status: voucher.status
             });
+            grandTotal += voucher.amount || 0;
         });
+
+        // Add grand total row
+        worksheet.addRow({
+            voucherNo: 'المجموع الكلي',
+            amount: grandTotal
+        });
+
+        // Style the grand total row
+        const grandTotalRow = worksheet.lastRow;
+        grandTotalRow.eachCell((cell) => {
+            cell.font = { bold: true };
+        });
+        grandTotalRow.getCell('amount').fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFF00' } // Yellow background
+        };
 
         // Apply number format to amount column
         worksheet.getColumn('amount').numFmt = '#,##0.000';
@@ -467,11 +493,12 @@ exports.getAllVouchersFormatted = async (req, res) => {
         worksheet.getColumn('pendingDate').numFmt = 'dd/mm/yyyy';
         worksheet.getColumn('paidDate').numFmt = 'dd/mm/yyyy';
 
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="vouchers.xlsx"');
-
-        await workbook.xlsx.write(res);
-        res.end();
+        res.send(buffer);
 
     } catch (error) {
         console.error('Error in getAllVouchersFormatted:', error);
