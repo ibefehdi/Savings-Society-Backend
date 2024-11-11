@@ -682,10 +682,10 @@ exports.updateShareholderSavings = async (req, res) => {
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
-            block: sanitizeInput(req.body.block),
-            street: sanitizeInput(req.body.street),
-            house: sanitizeInput(req.body.house),
-            area: sanitizeInput(req.body.area),
+            block: sanitizeInput(req.body.block) || 0,
+            street: sanitizeInput(req.body.street) || 0,
+            house: sanitizeInput(req.body.house) || 0,
+            area: sanitizeInput(req.body.area) || 0,
         };
         const address = await Address.create(sanitizedAddress);
         const workplaceId = sanitizeInput(req.body.workplaceId);
@@ -740,8 +740,8 @@ exports.createShareholderBackup = async (req, res) => {
 
         const sanitizedSavings = {
             deposits: [sanitizedDeposit],
-            totalAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
-            savingsIncrease: Number(req.body.profitSaving),
+            totalAmount: Number(req.body.savingsInitialPrice),
+            // savingsIncrease: Number(req.body.profitSaving),
             withdrawn: withdrawn,
             maxReached: false,
             amanat: newAmanat,
