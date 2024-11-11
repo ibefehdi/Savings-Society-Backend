@@ -764,7 +764,7 @@ exports.createShareholderBackup = async (req, res) => {
             fullName: sanitizeInput(req.body.fullName),
             membersCode: req.body.membersCode || undefined,
             DOB: sanitizeInput(req.body.dob),
-            civilId: sanitizeInput(req.body.civilId.replace(/`/g, '')), // Strip the apostrophe
+            civilId: sanitizeInput(req.body.civilId.replace(/'/g, '')), // Strip the apostrophe
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
             gender: sanitizeInput(req.body.gender),
