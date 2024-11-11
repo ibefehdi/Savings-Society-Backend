@@ -767,7 +767,7 @@ exports.createShareholderBackup = async (req, res) => {
             civilId: sanitizeInput(req.body.civilId.replace(/'/g, '')), // Strip the apostrophe
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
-            gender: sanitizeInput(req.body.gender),
+            gender: sanitizeInput(req.body.gender) || 'male',
             workplace: workplaceDescription,
             withdrawn: false,
             status: 0,
