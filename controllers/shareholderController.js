@@ -710,7 +710,7 @@ exports.createShareholderBackup = async (req, res) => {
         const sanitizedShare = {
             purchases: [sanitizedPurchase],
             totalAmount: Number(req.body.shareInitialPrice),
-            shareIncrease: Number(req.body.profitShare),
+            // shareIncrease: Number(req.body.profitShare),
             totalShareAmount: req.body.shareAmount,
             year: new Date().getFullYear(),
             withdrawn: false,
