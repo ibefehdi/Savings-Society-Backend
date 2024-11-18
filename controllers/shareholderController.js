@@ -2439,7 +2439,7 @@ exports.getShareholderFinancials = async (req, res) => {
         const share = shareholder.share ? shareholder.share.totalShareAmount : null;
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
         const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : null
-        const totalInterest = Number(shareIncrease) + Number(savingsIncrease)
+        const totalInterest = savings
         const alraseed = shareholder.savings ? shareholder.savings.alraseed : null
         console.log(shareholder.savings.amanat)
         // Prepare the response.
