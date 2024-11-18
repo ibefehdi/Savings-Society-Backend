@@ -132,8 +132,10 @@ savingsSchema.methods.calculateAdjustedIncrease = async function () {
     // Calculate increase on deposits
     for (const deposit of this.deposits) {
         const depositDate = new Date(deposit.date);
+        // let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear),
+        //     depositDate.getFullYear() < currentYear ? 0 : depositDate.getMonth() + 1, 1);
         let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear),
-            depositDate.getFullYear() < currentYear ? 0 : depositDate.getMonth() + 1, 1);
+            depositDate.getMonth(), 1);
         let endDate = new Date(currentYear, currentMonth, 0); // End at last day of previous month
 
         if (startDate > endDate) {
