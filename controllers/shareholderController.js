@@ -679,7 +679,6 @@ exports.updateShareholderSavings = async (req, res) => {
     }
 };
 
-const Shareholder = require('../models/Shareholder'); // Adjust the path as needed
 
 exports.updateShareholderDatesById = async (req, res) => {
     try {
