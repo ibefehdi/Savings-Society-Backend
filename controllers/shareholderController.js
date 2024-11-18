@@ -1401,25 +1401,27 @@ exports.moveSavingsToAmanat = async (req, res) => {
         const savings = shareholder.savings;
         const share = shareholder.share;
 
-        // Calculate total available increase
-        const totalIncrease = savings.savingsIncrease + share.shareIncrease;
+        // Calculate total available increase using totalAmount
+        const totalIncrease = savings.totalAmount;
 
-        // Check if there's enough balance in total increase to move
+        // Check if there's enough balance in total amount to move
         if (amountToMove > totalIncrease) {
-            return res.status(400).send({ status: 2, message: "Insufficient funds in total increase to move." });
+            return res.status(400).send({ status: 2, message: "Insufficient funds in total amount to move." });
         }
 
-        // Update the savingsIncrease and shareIncrease
-        let remainingToSubtract = amountToMove;
+        // Update the totalAmount
+        savings.totalAmount -= amountToMove;
 
-        if (remainingToSubtract <= savings.savingsIncrease) {
-            savings.savingsIncrease -= remainingToSubtract;
-            remainingToSubtract = 0;
-        } else {
-            remainingToSubtract -= savings.savingsIncrease;
-            savings.savingsIncrease = 0;
-            share.shareIncrease -= remainingToSubtract;
-        }
+        // Commented out previous logic for savingsIncrease and shareIncrease subtraction
+        // let remainingToSubtract = amountToMove;
+        // if (remainingToSubtract <= savings.savingsIncrease) {
+        //     savings.savingsIncrease -= remainingToSubtract;
+        //     remainingToSubtract = 0;
+        // } else {
+        //     remainingToSubtract -= savings.savingsIncrease;
+        //     savings.savingsIncrease = 0;
+        //     share.shareIncrease -= remainingToSubtract;
+        // }
 
         await savings.save();
         await share.save();
@@ -1466,7 +1468,7 @@ exports.moveSavingsToAmanat = async (req, res) => {
         res.status(200).send({
             status: 0,
             response,
-            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Total Increase to Amanat.`
+            message: `${shareholder.fName} ${shareholder.lName} has moved ${amountToMove} from their Total Amount to Amanat.`
         });
 
     } catch (err) {
@@ -1799,8 +1801,7 @@ exports.addToSavings = async (req, res) => {
         let share = shareholder.share;
 
         // Calculate total available increase
-        const totalIncrease = savings.totalAmount
-        // const totalIncrease = savings.savingsIncrease + share.shareIncrease;
+        const totalIncrease = savings.savingsIncrease + share.shareIncrease;
 
         // Check if amountToWithdraw is not more than total increase
         if (amountToWithdraw > totalIncrease) {
@@ -2440,7 +2441,7 @@ exports.getShareholderFinancials = async (req, res) => {
         const share = shareholder.share ? shareholder.share.totalShareAmount : null;
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
         const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : null
-        const totalInterest = savings
+        const totalInterest = shareholder.savings ? shareholder.savings.totalAmount : null;
         const alraseed = shareholder.savings ? shareholder.savings.alraseed : null
         console.log(shareholder.savings.amanat)
         // Prepare the response.
