@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { joiShareholderSchema } = require("../validationModels/joiModels")
 const validateRequiredFields = require('../middleware/middleware');
-const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted, updateAllSavingsIncrease, addToSavings, assignIbanToShareholder, transferInterestToSavings, transferSpecificInterestToSavings, moveCurrentSavingsToAmanat, changeAlRaseed, updateShareholderSavings, forceApplyIncrement, calculatePotentialIncrement, combinedSavingsWithdrawal } = require('../controllers/shareholderController');
+const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted, updateAllSavingsIncrease, addToSavings, assignIbanToShareholder, transferInterestToSavings, transferSpecificInterestToSavings, moveCurrentSavingsToAmanat, changeAlRaseed, updateShareholderSavings, forceApplyIncrement, calculatePotentialIncrement, combinedSavingsWithdrawal, updateShareholderDatesById } = require('../controllers/shareholderController');
 
 /**
  * @openapi
@@ -40,6 +40,7 @@ router.put("/shareholder/:id", editShareholder)
 router.put("/disableShareholder/:id", makeUserInactive)
 router.put("/enableShareholder/:id", makeUserActive)
 router.put("/changeAlRaseed/:id", changeAlRaseed)
+router.patch('/update-dates', updateShareholderDatesById);
 //GET Routes
 router.get("/shareholders", getAllShareholders)
 router.get("/shareholder/:id", getShareholderById)

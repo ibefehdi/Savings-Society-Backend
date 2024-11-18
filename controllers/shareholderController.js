@@ -679,6 +679,54 @@ exports.updateShareholderSavings = async (req, res) => {
     }
 };
 
+const Shareholder = require('../models/Shareholder'); // Adjust the path as needed
+
+exports.updateShareholderDatesById = async (req, res) => {
+    try {
+        const { membersCode, DOB, joinDate } = req.body;
+
+        // Validate input
+        if (!membersCode) {
+            return res.status(400).json({
+                message: 'Members Code is required'
+            });
+        }
+
+        // Find and update the shareholder
+        const updatedShareholder = await Shareholder.findOneAndUpdate(
+            { membersCode: membersCode },
+            {
+                DOB: DOB ? new Date(DOB) : undefined,
+                joinDate: joinDate ? new Date(joinDate) : undefined
+            },
+            {
+                new: true,  // Return the updated document
+                runValidators: true  // Run mongoose validators
+            }
+        );
+
+        // Check if shareholder was found and updated
+        if (!updatedShareholder) {
+            return res.status(404).json({
+                message: 'Shareholder not found'
+            });
+        }
+
+        // Respond with updated shareholder
+        res.status(200).json({
+            message: 'Shareholder dates updated successfully',
+            shareholder: updatedShareholder
+        });
+
+    } catch (error) {
+        // Handle potential errors
+        res.status(500).json({
+            message: 'Error updating shareholder',
+            error: error.message
+        });
+    }
+};
+
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
