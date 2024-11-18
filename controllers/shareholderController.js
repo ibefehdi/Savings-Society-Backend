@@ -1799,7 +1799,8 @@ exports.addToSavings = async (req, res) => {
         let share = shareholder.share;
 
         // Calculate total available increase
-        const totalIncrease = savings.savingsIncrease + share.shareIncrease;
+        const totalIncrease = savings.totalAmount
+        // const totalIncrease = savings.savingsIncrease + share.shareIncrease;
 
         // Check if amountToWithdraw is not more than total increase
         if (amountToWithdraw > totalIncrease) {
