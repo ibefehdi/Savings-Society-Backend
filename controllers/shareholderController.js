@@ -683,7 +683,7 @@ exports.updateShareholderSavings = async (req, res) => {
 exports.updateShareholderDatesById = async (req, res) => {
     try {
         const { membersCode, DOB, joinDate } = req.body;
-
+        console.log(membersCode)
         // Validate input
         if (!membersCode) {
             return res.status(400).json({
