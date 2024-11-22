@@ -2803,3 +2803,39 @@ exports.updateAllSavingsIncrease = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+exports.lastShareholderMembersCode = async (req, res) => {
+    try {
+        // Find all shareholders and convert membersCode to number for proper sorting
+        const shareholders = await Shareholder.find()
+            .select('membersCode')
+            .lean();
+
+        if (!shareholders || shareholders.length === 0) {
+            return res.status(200).json({
+                success: true,
+                lastMembersCode: "0",
+                message: 'No shareholders found'
+            });
+        }
+
+        // Convert membersCode strings to numbers and find the maximum
+        const lastMembersCode = shareholders
+            .map(s => parseInt(s.membersCode))
+            .reduce((max, current) => Math.max(max, current), 0)
+            .toString();
+
+        return res.status(200).json({
+            success: true,
+            lastMembersCode,
+            message: 'Last member code retrieved successfully'
+        });
+
+    } catch (error) {
+        console.error('Error fetching last member code:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+            message: 'Failed to retrieve last member code'
+        });
+    }
+}
