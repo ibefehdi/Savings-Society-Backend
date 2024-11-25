@@ -725,6 +725,124 @@ exports.updateShareholderDatesById = async (req, res) => {
         });
     }
 };
+exports.removeDuplicateShareholders = async (req, res) => {
+    try {
+        const { membersCode } = req.body;
+
+        if (!membersCode) {
+            return res.status(400).send({
+                status: 1,
+                message: "membersCode is required in request body"
+            });
+        }
+
+        // Find all shareholders with the given membersCode
+        const shareholders = await Shareholder.find({
+            membersCode: membersCode
+        }).sort({ createdAt: 1 }); // Sort by creation date, oldest first
+
+        if (shareholders.length === 0) {
+            return res.status(404).send({
+                status: 1,
+                message: "No shareholders found with the provided members code."
+            });
+        }
+
+        if (shareholders.length === 1) {
+            return res.status(200).send({
+                status: 0,
+                message: "No duplicates found for this members code."
+            });
+        }
+
+        // Keep the most complete record
+        const scoreRecord = (record) => {
+            let score = 0;
+            // Add points for each filled field
+            if (record.fName) score++;
+            if (record.lName) score++;
+            if (record.arabFName) score++;
+            if (record.arabLName) score++;
+            if (record.fullName) score++;
+            if (record.DOB) score++;
+            if (record.civilId) score++;
+            if (record.ibanNumber) score++;
+            if (record.mobileNumber) score++;
+            if (record.email) score++;
+            if (record.workplace) score++;
+            if (record.address) score++;
+            if (record.share) score++;
+            if (record.savings) score++;
+            return score;
+        };
+
+        // Score all records and find the one with highest score
+        const scoredRecords = shareholders.map(record => ({
+            record,
+            score: scoreRecord(record)
+        }));
+
+        // Sort by score (highest first) and then by creation date (oldest first)
+        scoredRecords.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return a.record.createdAt - b.record.createdAt;
+        });
+
+        const keepRecord = scoredRecords[0].record;
+        const duplicatesToRemove = shareholders.filter(record =>
+            record._id.toString() !== keepRecord._id.toString()
+        );
+
+        // Delete associated data for duplicates
+        for (const duplicate of duplicatesToRemove) {
+            // Delete associated address if exists and is not shared with kept record
+            if (duplicate.address && duplicate.address.toString() !== keepRecord.address?.toString()) {
+                await Address.findByIdAndDelete(duplicate.address);
+            }
+
+            // Delete associated share if exists and is not shared
+            if (duplicate.share && duplicate.share.toString() !== keepRecord.share?.toString()) {
+                await Share.findByIdAndDelete(duplicate.share);
+            }
+
+            // Delete associated savings and amanat if they exist and are not shared
+            if (duplicate.savings && duplicate.savings.toString() !== keepRecord.savings?.toString()) {
+                const savings = await Saving.findById(duplicate.savings);
+                if (savings && savings.amanat) {
+                    await Amanat.findByIdAndDelete(savings.amanat);
+                }
+                await Saving.findByIdAndDelete(duplicate.savings);
+            }
+
+            // Update any deposit/withdrawal histories to point to the kept record
+            await DepositHistory.updateMany(
+                { shareholder: duplicate._id },
+                { shareholder: keepRecord._id }
+            );
+
+            await WithdrawalHistory.updateMany(
+                { shareholder: duplicate._id },
+                { shareholder: keepRecord._id }
+            );
+
+            // Delete the duplicate shareholder
+            await Shareholder.findByIdAndDelete(duplicate._id);
+        }
+
+        res.status(200).send({
+            status: 0,
+            message: `Successfully removed ${duplicatesToRemove.length} duplicate(s) and kept the most complete record.`,
+            keptRecord: keepRecord,
+            removedCount: duplicatesToRemove.length
+        });
+
+    } catch (err) {
+        res.status(400).send({
+            status: 1,
+            message: err.message
+        });
+    }
+};
 
 exports.createShareholderBackup = async (req, res) => {
     try {

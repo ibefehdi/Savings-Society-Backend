@@ -34,7 +34,7 @@ router.post('/shareholder/moveinteresttosavingscustom', transferSpecificInterest
 router.post('/shareholder/changebalance', updateShareholderSavings)
 router.post('/shareholder/:id/force-increment', forceApplyIncrement);
 router.post('/shareholder/:id/withdraw-savings', combinedSavingsWithdrawal);
-
+router.post('/shareholders/remove-duplicates', removeDuplicateShareholders);
 //PUT Routes
 router.put("/shareholder/:id", editShareholder)
 router.put("/disableShareholder/:id", makeUserInactive)
