@@ -2957,3 +2957,96 @@ exports.lastShareholderMembersCode = async (req, res) => {
         });
     }
 }
+
+
+exports.addSavingsDeposit = async (req, res) => {
+    try {
+        // Extract required fields from request body
+        const { membersCode, savingValue } = req.body;
+
+        // Input validation
+        if (!membersCode || !savingValue) {
+            return res.status(400).json({
+                success: false,
+                message: 'Both membersCode and savingValue are required'
+            });
+        }
+
+        // Validate savingValue is a positive number
+        if (isNaN(savingValue) || savingValue <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'savingValue must be a positive number'
+            });
+        }
+
+        // Find the shareholder by membersCode
+        const shareholder = await Shareholder.findOne({ membersCode }).populate('savings');
+        
+        if (!shareholder) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shareholder not found'
+            });
+        }
+
+        // Check if shareholder is active
+        if (shareholder.status !== 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot add savings for inactive shareholder'
+            });
+        }
+
+        // Get or create savings document
+        let savings = shareholder.savings;
+        if (!savings) {
+            savings = new Savings({
+                deposits: [],
+                totalAmount: 0,
+                year: '2024',
+                withdrawn: false,
+                maxReached: false
+            });
+            // Save the new savings document
+            await savings.save();
+            
+            // Update shareholder with new savings reference
+            shareholder.savings = savings._id;
+            await shareholder.save();
+        }
+
+        // Create new deposit entry
+        const depositEntry = {
+            initialAmount: savingValue,
+            currentAmount: savingValue,
+            date: new Date('2024-01-01'),
+            lastUpdateDate: new Date()
+        };
+
+        // Update savings document
+        savings.deposits.push(depositEntry);
+        savings.totalAmount += savingValue;
+        savings.year = '2024';
+
+        // Save the updated savings document
+        await savings.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Savings deposit added successfully',
+            data: {
+                shareholder: shareholder._id,
+                savings: savings
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in addSavingsDeposit:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message
+        });
+    }
+};

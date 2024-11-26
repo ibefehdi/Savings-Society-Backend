@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { joiShareholderSchema } = require("../validationModels/joiModels")
 const validateRequiredFields = require('../middleware/middleware');
-const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted, updateAllSavingsIncrease, addToSavings, assignIbanToShareholder, transferInterestToSavings, transferSpecificInterestToSavings, moveCurrentSavingsToAmanat, changeAlRaseed, updateShareholderSavings, forceApplyIncrement, calculatePotentialIncrement, combinedSavingsWithdrawal, updateShareholderDatesById, lastShareholderMembersCode, removeDuplicateShareholders } = require('../controllers/shareholderController');
+const { createShareholder, addSavingsToShareholder, editShareholder, withdrawWealth, getAllShareholders, getShareholderById, withdrawSavings, withdrawShares, addSharesToShareholder, getShareholderFinancials, getShareholderCount, getShareholderActiveCount, withdrawAmanat, getUserAmanat, getAllShareholdersFormatted, createShareholderBackup, makeUserInactive, addShareholderSavingsForBackup, getShareholderByMembersCode, getShareholdersWithAmanat, moveSavingsToAmanat, getShareholderAmanatReportExport, getTransferLogReportExport, makeUserActive, getAllShareholdersSharesFormatted, getAllShareholdersSavingsFormatted, updateAllSavingsIncrease, addToSavings, assignIbanToShareholder, transferInterestToSavings, transferSpecificInterestToSavings, moveCurrentSavingsToAmanat, changeAlRaseed, updateShareholderSavings, forceApplyIncrement, calculatePotentialIncrement, combinedSavingsWithdrawal, updateShareholderDatesById, lastShareholderMembersCode, removeDuplicateShareholders, addSavingsDeposit } = require('../controllers/shareholderController');
 
 /**
  * @openapi
@@ -35,6 +35,8 @@ router.post('/shareholder/changebalance', updateShareholderSavings)
 router.post('/shareholder/:id/force-increment', forceApplyIncrement);
 router.post('/shareholder/:id/withdraw-savings', combinedSavingsWithdrawal);
 router.post('/shareholders/remove-duplicates', removeDuplicateShareholders);
+router.post('/shareholdersaddssaving/', addSavingsDeposit);
+
 //PUT Routes
 router.put("/shareholder/:id", editShareholder)
 router.put("/disableShareholder/:id", makeUserInactive)
