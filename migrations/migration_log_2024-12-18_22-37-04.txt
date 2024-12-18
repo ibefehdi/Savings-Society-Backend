@@ -1,0 +1,6 @@
+DOB Migration Log
+Timestamp: 2024-12-18 22:37:04
+Total records affected: 1
+
+Affected Records:
+ID: 673281312b7aa71083c4999b, Code: 3198, Name: بدر عبدالمحسن احمد الدويسان

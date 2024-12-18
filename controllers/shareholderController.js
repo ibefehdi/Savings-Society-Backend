@@ -199,7 +199,12 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         const gender = req.query.gender || '';
         const membersCode = req.query.membersCode || '';
 
-        let queryConditions = {};
+        let queryConditions = {
+            membersCode: {
+                $ne: 0,  // Exclude membersCode 0
+
+            }
+        };
         if (status) queryConditions.status = status;
         if (fName) queryConditions.fName = { $regex: fName, $options: 'i' };
         if (civilId) queryConditions.civilId = { $regex: `^${civilId}`, $options: 'i' };
@@ -209,11 +214,12 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         if (gender) queryConditions.gender = gender;
 
         const shareholders = await Shareholder.find(queryConditions)
-
             .select('fName DOB civilId joinDate ibanNumber mobileNumber address share savings membersCode')
             .populate('address')
             .populate('share')
-            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } });
+            .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
+            .collation({ locale: "en_US", numericOrdering: true }) // Enable numeric sorting
+            .sort({ membersCode: 1 }); // Sort by membersCode in ascending order
 
         const csvStringifier = stringify({
             header: true,
@@ -239,7 +245,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         res.write('\uFEFF');  // UTF-8 BOM
         csvStringifier.pipe(res);
 
-        shareholders.forEach((shareholder, index) => {
+        shareholders.forEach((shareholder) => {
             let shareCurrentAmount = 0;
             if (shareholder.share && shareholder.share.purchases) {
                 shareCurrentAmount = shareholder.share.totalAmount || 0;
@@ -253,12 +259,12 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                     amanatAmount = shareholder.savings.amanat.amount || 0;
                 }
             }
-            console.log("Shareholder mobile number:", shareholder.mobileNumber); // Add this line for debugging
 
             const row = {
-                'رقم العضوية': shareholder.membersCode || (skip + index + 1),
+                'رقم العضوية': shareholder.membersCode,
                 'اسم المساهم': shareholder.fName,
                 'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                
                 'رقم مدني': shareholder.civilId || 'NULL',
                 'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'ايبان البنك': shareholder.ibanNumber || '0',
@@ -1407,7 +1413,76 @@ exports.addSavingsToShareholder = async (req, res) => {
         res.status(500).send({ message: "Internal server error." });
     }
 }
+exports.removeShareholderSavings = async (req, res) => {
+    try {
+        const membersCode = req.params.membersCode;
 
+        // Find the shareholder by membersCode
+        const shareholder = await Shareholder.findOne({ membersCode });
+        if (!shareholder) {
+            return res.status(404).send({ 
+                status: 1, 
+                message: "Shareholder not found.",
+                messageArabic: "لم يتم العثور على المساهم" 
+            });
+        }
+
+        // Check if shareholder has any savings
+        if (!shareholder.savings) {
+            return res.status(400).send({ 
+                status: 1, 
+                message: "No savings found for this shareholder.",
+                messageArabic: "لم يتم العثور على مدخرات لهذا المساهم" 
+            });
+        }
+
+        // Get the current savings record
+        const savings = await Saving.findById(shareholder.savings);
+        if (!savings) {
+            return res.status(404).send({ 
+                status: 1, 
+                message: "Savings record not found.",
+                messageArabic: "لم يتم العثور على سجل المدخرات" 
+            });
+        }
+
+        // Update the savings document
+        await Saving.findByIdAndUpdate(savings._id, {
+            $set: {
+                deposits: [],
+                totalAmount: 0,
+                withdrawn: true,
+                adminId: [
+                    ...savings.adminId,
+                    {
+                        adminId: req.body.adminId,
+                        amountBeforeChange: savings.totalAmount,
+                        timestamp: new Date()
+                    }
+                ]
+            }
+        });
+
+        // Remove the savings reference from the shareholder
+        shareholder.savings = null;
+        await shareholder.save();
+
+        res.status(200).send({
+            status: 0,
+            message: "Savings successfully removed.",
+            messageArabic: "تمت إزالة المدخرات بنجاح",
+            shareholder
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ 
+            status: 1, 
+            message: "Internal server error.",
+            messageArabic: "خطأ داخلي في الخادم" 
+        });
+    }
+};
 exports.addSharesToShareholder = async (req, res) => {
     try {
         const id = req.params.id;
@@ -2982,7 +3057,7 @@ exports.addSavingsDeposit = async (req, res) => {
 
         // Find the shareholder by membersCode
         const shareholder = await Shareholder.findOne({ membersCode }).populate('savings');
-        
+
         if (!shareholder) {
             return res.status(404).json({
                 success: false,
@@ -3010,7 +3085,7 @@ exports.addSavingsDeposit = async (req, res) => {
             });
             // Save the new savings document
             await savings.save();
-            
+
             // Update shareholder with new savings reference
             shareholder.savings = savings._id;
             await shareholder.save();
