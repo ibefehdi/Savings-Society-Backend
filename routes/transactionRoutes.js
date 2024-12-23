@@ -15,7 +15,7 @@ router.get('/transactionsexport', transactionController.getAllTransactionsCSV);
 
 router.get('/profit-report/export', transactionController.getProfitReportCSV);
 
-router.get('/profit-report-flat/export', transactionController.getProfitReportByFlatCSV)
+router.get('/income-report-flat/export/:buildingId', transactionController.getProfitReportByFlatCSV)
 
 router.get('/expenses/buildings', transactionController.getExpensesByBuilding);
 

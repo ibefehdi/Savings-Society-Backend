@@ -174,59 +174,60 @@ exports.getTransactionsByType = async (req, res) => {
 };
 exports.getProfitReportCSV = async (req, res) => {
     try {
-        const [incomes, expenses] = await Promise.all([
-            Transaction.aggregate([
-                { $match: { type: 'Income' } },
-                {
-                    $group: {
-                        _id: '$buildingId',
-                        totalIncome: { $sum: '$amount' },
-                    },
+        // Get all paid vouchers (income)
+        const incomes = await Voucher.aggregate([
+            { $match: { status: 'Paid' } },
+            {
+                $group: {
+                    _id: '$buildingId',
+                    totalIncome: { $sum: '$amount' },
                 },
-                {
-                    $lookup: {
-                        from: 'buildings',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'building',
-                    },
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'building',
                 },
-                { $unwind: '$building' },
-                {
-                    $project: {
-                        buildingId: '$_id',
-                        buildingName: '$building.name',
-                        buildingType: '$building.type',
-                        totalIncome: 1,
-                    },
+            },
+            { $unwind: '$building' },
+            {
+                $project: {
+                    buildingId: '$_id',
+                    buildingName: '$building.name',
+                    buildingType: '$building.type',
+                    totalIncome: 1,
                 },
-            ]),
-            Transaction.aggregate([
-                { $match: { type: 'Expense' } },
-                {
-                    $group: {
-                        _id: '$buildingId',
-                        totalExpenses: { $sum: '$amount' },
-                    },
+            },
+        ]);
+
+        // Get all expenses (assuming expenses are also tracked in Vouchers with a different type)
+        const expenses = await Voucher.aggregate([
+            { $match: { status: 'Paid', type: 'Expense' } },
+            {
+                $group: {
+                    _id: '$buildingId',
+                    totalExpenses: { $sum: '$amount' },
                 },
-                {
-                    $lookup: {
-                        from: 'buildings',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'building',
-                    },
+            },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'building',
                 },
-                { $unwind: '$building' },
-                {
-                    $project: {
-                        buildingId: '$_id',
-                        buildingName: '$building.name',
-                        buildingType: '$building.type',
-                        totalExpenses: 1,
-                    },
+            },
+            { $unwind: '$building' },
+            {
+                $project: {
+                    buildingId: '$_id',
+                    buildingName: '$building.name',
+                    buildingType: '$building.type',
+                    totalExpenses: 1,
                 },
-            ])
+            },
         ]);
 
         const profitReport = incomes.map(income => {
@@ -255,10 +256,12 @@ exports.getProfitReportCSV = async (req, res) => {
             }
         });
 
+        // Calculate totals
         const totalIncome = profitReport.reduce((sum, report) => sum + report.totalIncome, 0);
         const totalExpenses = profitReport.reduce((sum, report) => sum + report.totalExpenses, 0);
         const totalProfit = totalIncome - totalExpenses;
 
+        // Add totals row
         profitReport.push({
             buildingId: 'total',
             buildingName: 'Total',
@@ -268,9 +271,11 @@ exports.getProfitReportCSV = async (req, res) => {
             profit: totalProfit
         });
 
+        // Create Excel workbook
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Profit Report');
 
+        // Define columns with Arabic headers
         worksheet.columns = [
             { header: 'اسم المبنى', key: 'buildingName', width: 20 },
             { header: 'نوع المبنى', key: 'buildingType', width: 15 },
@@ -302,6 +307,7 @@ exports.getProfitReportCSV = async (req, res) => {
         // Generate Excel file
         const buffer = await workbook.xlsx.writeBuffer();
 
+        // Set response headers and send file
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="profit_report.xlsx"');
         res.send(buffer);
@@ -450,11 +456,11 @@ exports.getIncomeByFlat = async (req, res) => {
 
         const incomes = await Voucher.aggregate([
             // Match vouchers for the specific building and paid status
-            { 
-                $match: { 
+            {
+                $match: {
                     buildingId: buildingObjectId,
                     status: 'Paid'
-                } 
+                }
             },
             {
                 $group: {
@@ -502,94 +508,113 @@ exports.getIncomeByFlat = async (req, res) => {
         // Calculate total income for the building
         const totalBuildingIncome = incomes.reduce((sum, income) => sum + income.totalIncome, 0);
 
-        res.json({ 
+        res.json({
             buildingId,
             buildingName: incomes[0]?.buildingName || '',
             totalBuildingIncome,
-            flats: incomes 
+            flats: incomes
         });
 
     } catch (error) {
         console.error('Error in getIncomeByFlat:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'An error occurred while fetching flat income data',
-            details: error.message 
+            details: error.message
         });
     }
 };
 exports.getProfitReportByFlatCSV = async (req, res) => {
     try {
-        const [incomes, expenses] = await Promise.all([
-            Transaction.aggregate([
-                { $match: { type: 'Income', transactionFrom: 'Flat' } },
-                {
-                    $group: {
-                        _id: '$flatId',
-                        totalIncome: { $sum: '$amount' },
-                    },
+        const buildingId = req.params.buildingId;
+        const buildingObjectId = new mongoose.Types.ObjectId(buildingId);
+
+        // Get all paid income vouchers for the specific building
+        const incomes = await Voucher.aggregate([
+            {
+                $match: {
+                    buildingId: buildingObjectId,
+                    status: 'Paid'
+                }
+            },
+            {
+                $group: {
+                    _id: '$flatId',
+                    totalIncome: { $sum: '$amount' },
+                    buildingId: { $first: '$buildingId' }
                 },
-                {
-                    $lookup: {
-                        from: 'flats',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'flat',
-                    },
+            },
+            {
+                $lookup: {
+                    from: 'flats',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'flat',
                 },
-                { $unwind: '$flat' },
-                {
-                    $lookup: {
-                        from: 'buildings',
-                        localField: 'flat.buildingId',
-                        foreignField: '_id',
-                        as: 'building',
-                    },
+            },
+            { $unwind: '$flat' },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'buildingId',
+                    foreignField: '_id',
+                    as: 'building',
                 },
-                { $unwind: '$building' },
-                {
-                    $project: {
-                        flatId: '$_id',
-                        flatNumber: '$flat.flatNumber',
-                        buildingName: '$building.name',
-                        totalIncome: 1,
-                    },
+            },
+            { $unwind: '$building' },
+            {
+                $project: {
+                    flatId: '$_id',
+                    flatNumber: '$flat.flatNumber',
+                    buildingName: '$building.name',
+                    totalIncome: 1,
                 },
-            ]),
-            Transaction.aggregate([
-                { $match: { type: 'Expense', transactionFrom: 'Flat' } },
-                {
-                    $group: {
-                        _id: '$flatId',
-                        totalExpenses: { $sum: '$amount' },
-                    },
+            },
+            { $sort: { flatNumber: 1 } }
+        ]);
+
+        // Get all paid expense vouchers for the specific building
+        const expenses = await Voucher.aggregate([
+            {
+                $match: {
+                    buildingId: buildingObjectId,
+                    status: 'Paid',
+                    type: 'Expense'
+                }
+            },
+            {
+                $group: {
+                    _id: '$flatId',
+                    totalExpenses: { $sum: '$amount' },
+                    buildingId: { $first: '$buildingId' }
                 },
-                {
-                    $lookup: {
-                        from: 'flats',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'flat',
-                    },
+            },
+            {
+                $lookup: {
+                    from: 'flats',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'flat',
                 },
-                { $unwind: '$flat' },
-                {
-                    $lookup: {
-                        from: 'buildings',
-                        localField: 'flat.buildingId',
-                        foreignField: '_id',
-                        as: 'building',
-                    },
+            },
+            { $unwind: '$flat' },
+            {
+                $lookup: {
+                    from: 'buildings',
+                    localField: 'buildingId',
+                    foreignField: '_id',
+                    as: 'building',
                 },
-                { $unwind: '$building' },
-                {
-                    $project: {
-                        flatId: '$_id',
-                        flatNumber: '$flat.flatNumber',
-                        buildingName: '$building.name',
-                        totalExpenses: 1,
-                    },
+            },
+            { $unwind: '$building' },
+            {
+                $project: {
+                    flatId: '$_id',
+                    flatNumber: '$flat.flatNumber',
+                    buildingName: '$building.name',
+                    totalExpenses: 1,
                 },
-            ])
+            },
+            { $sort: { flatNumber: 1 } }
         ]);
 
         const profitReport = incomes.map(income => {
@@ -618,22 +643,26 @@ exports.getProfitReportByFlatCSV = async (req, res) => {
             }
         });
 
+        // Calculate totals
         const totalIncome = profitReport.reduce((sum, report) => sum + report.totalIncome, 0);
         const totalExpenses = profitReport.reduce((sum, report) => sum + report.totalExpenses, 0);
         const totalProfit = totalIncome - totalExpenses;
 
+        // Add totals row
         profitReport.push({
             flatId: 'total',
             flatNumber: 'Total',
-            buildingName: '',
+            buildingName: profitReport[0]?.buildingName || '',
             totalIncome,
             totalExpenses,
             profit: totalProfit
         });
 
+        // Create Excel workbook
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Profit Report by Flat');
 
+        // Define columns with Arabic headers
         worksheet.columns = [
             { header: 'رقم الشقة', key: 'flatNumber', width: 15 },
             { header: 'اسم المبنى', key: 'buildingName', width: 20 },
@@ -665,13 +694,17 @@ exports.getProfitReportByFlatCSV = async (req, res) => {
         // Generate Excel file
         const buffer = await workbook.xlsx.writeBuffer();
 
+        // Set response headers and send file
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="profit_report_by_flat.xlsx"');
         res.send(buffer);
 
     } catch (error) {
         console.error("Error exporting profit report by flat to XLSX:", error);
-        res.status(500).json({ message: "Error exporting profit report by flat to XLSX", error: error.message });
+        res.status(500).json({ 
+            message: "Error exporting profit report by flat to XLSX", 
+            error: error.message 
+        });
     }
 };
 exports.getTransactionsByDateRange = async (req, res) => {
