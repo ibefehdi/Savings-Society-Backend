@@ -21,9 +21,9 @@ router.get('/expenses/buildings', transactionController.getExpensesByBuilding);
 
 router.get('/incomes/buildings', transactionController.getIncomeByBuilding);
 
-router.get('/expenses/flats', transactionController.getExpensesByFlat);
+router.get('/expenses/flats/:buildingId', transactionController.getExpensesByFlat);
 
-router.get('/incomes/flats', transactionController.getIncomeByFlat);
+router.get('/incomes/flats/:buildingId', transactionController.getIncomeByFlat);
 
 router.get('/date-range/transactions', transactionController.getTransactionsByDateRange);
 

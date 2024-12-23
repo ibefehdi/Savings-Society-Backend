@@ -6,7 +6,7 @@ const Transaction = require('../models/transactionSchema');
 const { stringify } = require('csv-stringify');
 const moment = require('moment');
 const ExcelJS = require('exceljs');
-
+const Voucher = require('../models/voucherSchema');
 
 exports.getAllTransactionsCSV = async (req, res) => {
     try {
@@ -351,11 +351,11 @@ exports.getExpensesByBuilding = async (req, res) => {
         res.status(500).json({ error: 'An error occurred' });
     }
 };
-
 exports.getIncomeByBuilding = async (req, res) => {
     try {
-        const incomes = await Transaction.aggregate([
-            { $match: { type: 'Income' } },
+        const incomes = await Voucher.aggregate([
+            // Only include Paid vouchers since they represent confirmed income
+            { $match: { status: 'Paid' } },
             {
                 $group: {
                     _id: '$buildingId',
@@ -388,10 +388,10 @@ exports.getIncomeByBuilding = async (req, res) => {
 
         res.json({ incomes, totalIncome });
     } catch (error) {
-        res.status(500).json({ error: 'An error occurred' });
+        console.error('Error in getIncomeByBuilding:', error);
+        res.status(500).json({ error: 'An error occurred while fetching income data' });
     }
 };
-
 exports.getExpensesByFlat = async (req, res) => {
     try {
         const expenses = await Transaction.aggregate([
@@ -443,12 +443,25 @@ exports.getExpensesByFlat = async (req, res) => {
 
 exports.getIncomeByFlat = async (req, res) => {
     try {
-        const incomes = await Transaction.aggregate([
-            { $match: { type: 'Income', transactionFrom: 'Flat' } },
+        const buildingId = req.params.buildingId;
+
+        // Convert buildingId string to ObjectId
+        const buildingObjectId = new mongoose.Types.ObjectId(buildingId);
+
+        const incomes = await Voucher.aggregate([
+            // Match vouchers for the specific building and paid status
+            { 
+                $match: { 
+                    buildingId: buildingObjectId,
+                    status: 'Paid'
+                } 
+            },
             {
                 $group: {
                     _id: '$flatId',
                     totalIncome: { $sum: '$amount' },
+                    // Store the buildingId for later lookup
+                    buildingId: { $first: '$buildingId' }
                 },
             },
             {
@@ -465,7 +478,7 @@ exports.getIncomeByFlat = async (req, res) => {
             {
                 $lookup: {
                     from: 'buildings',
-                    localField: 'flat.buildingId',
+                    localField: 'buildingId',
                     foreignField: '_id',
                     as: 'building',
                 },
@@ -482,11 +495,26 @@ exports.getIncomeByFlat = async (req, res) => {
                     totalIncome: 1,
                 },
             },
+            // Sort by flat number for better readability
+            { $sort: { flatNumber: 1 } }
         ]);
 
-        res.json({ incomes });
+        // Calculate total income for the building
+        const totalBuildingIncome = incomes.reduce((sum, income) => sum + income.totalIncome, 0);
+
+        res.json({ 
+            buildingId,
+            buildingName: incomes[0]?.buildingName || '',
+            totalBuildingIncome,
+            flats: incomes 
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'An error occurred' });
+        console.error('Error in getIncomeByFlat:', error);
+        res.status(500).json({ 
+            error: 'An error occurred while fetching flat income data',
+            details: error.message 
+        });
     }
 };
 exports.getProfitReportByFlatCSV = async (req, res) => {
