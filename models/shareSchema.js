@@ -224,6 +224,7 @@ shareSchema.set('toJSON', { getters: true });
 //     console.log("Returning total amount:", Number(this.totalAmount));
 //     return Number(this.totalAmount);
 // };
+// Regular calculation function using simple interest
 shareSchema.methods.calculateCurrentPrice = async function () {
     console.log("Calculating current price for share");
     const now = new Date();
@@ -252,7 +253,11 @@ shareSchema.methods.calculateCurrentPrice = async function () {
     }
 
     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
-    console.log("Annual interest rate:", annualIncreaseRate);
+    const monthlyRate = annualIncreaseRate / 12;
+    console.log("Monthly interest rate:", monthlyRate);
+
+    // Reset shareIncrease for new calculation
+    this.shareIncrease = 0;
 
     for (const purchase of this.purchases) {
         let lastUpdateDate = purchase.lastUpdateDate ? new Date(purchase.lastUpdateDate) : purchase.date;
@@ -261,15 +266,21 @@ shareSchema.methods.calculateCurrentPrice = async function () {
         // Set the last update date to the first day of the next month after the purchase date
         lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
 
-        const timeSinceLastUpdate = now - lastUpdateDate;
-        const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
-        console.log("Time since last update (fraction of a year):", yearFractionSinceLastUpdate);
+        // Calculate whole months since last update
+        const monthsSinceLastUpdate = (now.getFullYear() - lastUpdateDate.getFullYear()) * 12 +
+            (now.getMonth() - lastUpdateDate.getMonth());
 
-        if (yearFractionSinceLastUpdate > 0) {
-            let calculatedAmount = purchase.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
-            console.log("Calculated amount:", calculatedAmount);
+        console.log("Months since last update:", monthsSinceLastUpdate);
 
-            purchase.currentAmount = calculatedAmount;
+        if (monthsSinceLastUpdate > 0) {
+            // Simple interest formula: Principal * Rate * Time
+            const monthlyInterest = purchase.initialAmount * monthlyRate;
+            const totalInterest = monthlyInterest * monthsSinceLastUpdate;
+
+            // Add to shareIncrease
+            this.shareIncrease += totalInterest;
+
+            purchase.currentAmount = purchase.initialAmount + totalInterest;
             purchase.lastUpdateDate = now;
             console.log(`Updated current amount for purchase with initial amount ${purchase.initialAmount} to ${purchase.currentAmount.toFixed(2)}`);
         } else {
@@ -277,12 +288,71 @@ shareSchema.methods.calculateCurrentPrice = async function () {
         }
     }
 
-    this.totalAmount = this.purchases.reduce((total, purchase) => total + purchase.currentAmount, 0);
+    this.totalAmount = this.purchases.reduce((total, purchase) => total + purchase.initialAmount, 0);
     await this.save();
     console.log("Saved updated share");
+    console.log("Share Increase:", this.shareIncrease);
 
-    console.log("Returning total amount:", Number(this.totalAmount));
-    return Number(this.totalAmount);
+    return this.shareIncrease;
+};
+
+// 2024 correction function
+shareSchema.methods.correct2024InterestCalculation = async function () {
+    const targetYear = 2024;
+    const endOfYear = new Date(targetYear, 11, 31); // December 31st 2024
+
+    if (this.withdrawn) {
+        return 0;
+    }
+
+    const shareConfig = await shareConfigSchema.findOne({ year: targetYear });
+    if (!shareConfig) {
+        console.log(`No share configuration found for 2024.`);
+        return this.totalAmount;
+    }
+
+    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+    const monthlyRate = annualIncreaseRate / 12;
+
+    // Reset shareIncrease
+    this.shareIncrease = 0;
+
+    // Reset all purchases to initial amount and recalculate with simple interest
+    for (const purchase of this.purchases) {
+        const purchaseDate = new Date(purchase.date);
+
+        // Only process purchases made in or before 2024
+        if (purchaseDate.getFullYear() <= targetYear) {
+            // If purchase was made in 2024, calculate from purchase date
+            // If purchase was made before 2024, calculate from start of 2024
+            let startDate = new Date(Math.max(purchaseDate.getFullYear(), targetYear),
+                purchaseDate.getFullYear() < targetYear ? 0 : purchaseDate.getMonth(), 1);
+
+            // Calculate months until end of 2024
+            const months = (12 - startDate.getMonth());
+
+            if (months > 0) {
+                // Reset to initial amount
+                purchase.currentAmount = purchase.initialAmount;
+
+                // Calculate simple interest
+                const monthlyInterest = purchase.initialAmount * monthlyRate;
+                const totalInterest = monthlyInterest * months;
+
+                // Add to shareIncrease
+                this.shareIncrease += totalInterest;
+
+                purchase.currentAmount += totalInterest;
+                purchase.lastUpdateDate = endOfYear;
+            }
+        }
+    }
+
+    // Update total amount (just the initial amounts)
+    this.totalAmount = this.purchases.reduce((total, purchase) => total + purchase.initialAmount, 0);
+    await this.save();
+
+    return this.shareIncrease;
 };
 shareSchema.pre('save', async function (next) {
     if (this.isNew) {
@@ -308,6 +378,7 @@ shareSchema.pre('save', async function (next) {
         next();
     }
 });
+
 
 
 
