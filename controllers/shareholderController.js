@@ -326,7 +326,9 @@ exports.getAllShareholdersSharesFormatted = async (req, res) => {
                 'رقم الهاتف',
                 'العنوان',
                 'قيمة السهم',
-                'عدد الأسهم'
+                'عدد الأسهم',
+                'فائدة السهم',
+                'امانات'
             ]
         });
 
@@ -348,10 +350,12 @@ exports.getAllShareholdersSharesFormatted = async (req, res) => {
                 'الرقم المدني': shareholder.civilId || 'NULL',
                 'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'الايبان': shareholder.ibanNumber || '0',
-                'رقم الهاتف': shareholder.phoneNumber || 'N/A',
+                'رقم الهاتف': shareholder.mobileNumber || 'N/A',
                 'العنوان': shareholder.address ? `Block ${shareholder.address.block}, Street ${shareholder.address.street}, House ${shareholder.address.house}` : '',
                 'قيمة السهم': Math.floor(shareholder.share.totalAmount),
-                'عدد الأسهم': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000'
+                'عدد الأسهم': (shareholder.share && shareholder.share.totalShareAmount) ? Math.floor(shareholder.share.totalShareAmount) : '0.000',
+                'فائدة السهم': shareholder.share && shareholder.share.shareIncrease,
+                'امانات': shareholder.savings.amanat.amount
             };
 
             csvStringifier.write(row);
