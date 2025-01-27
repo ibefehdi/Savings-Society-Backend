@@ -23,107 +23,82 @@ exports.getAllWithdrawalHistory = async (req, res) => {
             year
         } = req.query;
 
-        let aggregationPipeline = [
-            {
-                $lookup: {
-                    from: 'shareholders',
-                    localField: 'shareholder',
-                    foreignField: '_id',
-                    as: 'shareholderInfo'
+        // Build the query
+        let query = WithdrawalHistory.find()
+            .populate({
+                path: 'shareholder',
+                match: {
+                    ...(membersCode && { membersCode: new RegExp(`^${membersCode}`, 'i') }),
+                    ...(civilId && { civilId: new RegExp(`^${civilId}`, 'i') }),
+                    ...(mobileNumber && { mobileNumber: new RegExp(`^${mobileNumber}`, 'i') }),
+                    ...(fullName && {
+                        $or: [
+                            { fName: new RegExp(fullName, 'i') },
+                            { lName: new RegExp(fullName, 'i') }
+                        ]
+                    })
                 }
-            },
-            { $unwind: '$shareholderInfo' }
-        ];
+            })
+            .populate('savings')
+            .populate('shares')
+            .populate('amanat');
 
-        // Shareholder filters
-        if (membersCode) {
-            aggregationPipeline.push({
-                $match: { 'shareholderInfo.membersCode': { $regex: `^${membersCode}`, $options: 'i' } }
-            });
-        }
-        if (fullName) {
-            aggregationPipeline.push({
-                $match: {
-                    $or: [
-                        { 'shareholderInfo.fName': { $regex: fullName, $options: 'i' } },
-                        { 'shareholderInfo.lName': { $regex: fullName, $options: 'i' } }
-                    ]
-                }
-            });
-        }
-        if (civilId) {
-            aggregationPipeline.push({
-                $match: { 'shareholderInfo.civilId': { $regex: `^${civilId}`, $options: 'i' } }
-            });
-        }
-        if (mobileNumber) {
-            aggregationPipeline.push({
-                $match: { 'shareholderInfo.mobileNumber': { $regex: `^${mobileNumber}`, $options: 'i' } }
-            });
-        }
-
-        // Other filters
+        // Add direct filters
         if (withdrawalDate) {
-            aggregationPipeline.push({ $match: { withdrawalDate: new Date(withdrawalDate) } });
+            query = query.where('withdrawalDate', new Date(withdrawalDate));
         }
         if (previousAmount) {
-            aggregationPipeline.push({ $match: { previousAmount: previousAmount } });
+            query = query.where('previousAmount', previousAmount);
         }
         if (newAmount) {
-            aggregationPipeline.push({ $match: { newAmount: newAmount } });
+            query = query.where('newAmount', newAmount);
         }
         if (type) {
-            aggregationPipeline.push({ $match: { type: type } });
+            query = query.where('type', type);
         }
         if (year) {
-            aggregationPipeline.push({ $match: { year: year } });
+            query = query.where('year', year);
         }
+
+        // Handle admin filter
         if (admin) {
-            aggregationPipeline.push({
-                $lookup: {
-                    from: 'users',
-                    localField: 'admin',
-                    foreignField: '_id',
-                    as: 'adminInfo'
-                }
-            });
-            aggregationPipeline.push({ $unwind: '$adminInfo' });
-            aggregationPipeline.push({
-                $match: {
+            query = query.populate({
+                path: 'admin',
+                match: {
                     $or: [
-                        { 'adminInfo.fName': { $regex: admin, $options: 'i' } },
-                        { 'adminInfo.lName': { $regex: admin, $options: 'i' } }
+                        { fName: new RegExp(admin, 'i') },
+                        { lName: new RegExp(admin, 'i') }
                     ]
                 }
             });
+        } else {
+            query = query.populate('admin');
         }
 
-        // Count documents
-        const countPipeline = [...aggregationPipeline];
-        countPipeline.push({ $count: 'total' });
-        const countResult = await WithdrawalHistory.aggregate(countPipeline);
-        const count = countResult.length > 0 ? countResult[0].total : 0;
-
-        // Add pagination
-        aggregationPipeline.push({ $skip: skip });
-        aggregationPipeline.push({ $limit: resultsPerPage });
-
-        // Perform aggregation
-        const histories = await WithdrawalHistory.aggregate(aggregationPipeline);
-
-        // Manually populate references if needed
-        await WithdrawalHistory.populate(histories, [
-            { path: 'savings' },
-            { path: 'shares' },
-            { path: 'amanat' },
-            { path: 'admin' },
-            { path: 'shareholder' }
+        // Execute query with pagination
+        const [histories, totalCount] = await Promise.all([
+            query
+                .skip(skip)
+                .limit(resultsPerPage)
+                .lean(),
+            WithdrawalHistory.countDocuments(query.getQuery())
         ]);
+
+        // Filter out records where populated fields are null due to match conditions
+        const filteredHistories = histories.filter(history =>
+            history.shareholder &&
+            (!admin || history.admin)
+        );
+
+        // Adjust count based on filtered results
+        const finalCount = admin || membersCode || fullName || civilId || mobileNumber
+            ? filteredHistories.length
+            : totalCount;
 
         res.status(200).json({
             success: true,
-            count: count,
-            data: histories
+            count: finalCount,
+            data: filteredHistories
         });
     } catch (error) {
         res.status(500).json({
@@ -183,7 +158,7 @@ exports.getWithdrawalHistoryReportExport = async (req, res) => {
         // Add headers
         worksheet.addRow([
             'رقم العضوية', ' الاسم', 'نوع العملية', 'الرصيد السابق', 'الرصيد الجديد',
-             'تاريخ السحب', 'الادارة'
+            'تاريخ السحب', 'الادارة'
         ]);
 
         // Add data rows
