@@ -389,8 +389,8 @@ exports.getAllShareholderByYear = async (req, res) => {
                 path: 'share',
                 // match: { year: year }
             })
-            .skip(skip)
-            .limit(resultsPerPage);
+        // .skip(skip)
+        // .limit(resultsPerPage);
 
         console.log(shareholders)
         const count = shareholders.length;

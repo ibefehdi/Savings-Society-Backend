@@ -422,6 +422,23 @@ exports.getAllVouchersFormatted = async (req, res) => {
             .populate('tenantId')
             .populate('buildingId');
 
+        // Sort vouchers by flat number
+        vouchers.sort((a, b) => {
+            const flatA = a.flatId ? a.flatId.flatNumber : '';
+            const flatB = b.flatId ? b.flatId.flatNumber : '';
+
+            // Handle numeric flat numbers
+            const numA = parseInt(flatA);
+            const numB = parseInt(flatB);
+
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+
+            // Fall back to string comparison for non-numeric flat numbers
+            return flatA.localeCompare(flatB);
+        });
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Vouchers');
 
