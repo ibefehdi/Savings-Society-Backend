@@ -23,82 +23,93 @@ exports.getAllWithdrawalHistory = async (req, res) => {
             year
         } = req.query;
 
-        // Build the query
-        let query = WithdrawalHistory.find()
-            .populate({
-                path: 'shareholder',
-                match: {
-                    ...(membersCode && { membersCode: new RegExp(`^${membersCode}`, 'i') }),
-                    ...(civilId && { civilId: new RegExp(`^${civilId}`, 'i') }),
-                    ...(mobileNumber && { mobileNumber: new RegExp(`^${mobileNumber}`, 'i') }),
-                    ...(fullName && {
-                        $or: [
-                            { fName: new RegExp(fullName, 'i') },
-                            { lName: new RegExp(fullName, 'i') }
-                        ]
-                    })
-                }
-            })
-            .populate('savings')
-            .populate('shares')
-            .populate('amanat');
+        // Build base query conditions
+        let queryConditions = {};
 
-        // Add direct filters
         if (withdrawalDate) {
-            query = query.where('withdrawalDate', new Date(withdrawalDate));
+            queryConditions.withdrawalDate = new Date(withdrawalDate);
         }
         if (previousAmount) {
-            query = query.where('previousAmount', previousAmount);
+            queryConditions.previousAmount = previousAmount;
         }
         if (newAmount) {
-            query = query.where('newAmount', newAmount);
+            queryConditions.newAmount = newAmount;
         }
         if (type) {
-            query = query.where('type', type);
+            queryConditions.type = type;
         }
         if (year) {
-            query = query.where('year', year);
+            queryConditions.year = year;
         }
 
-        // Handle admin filter
+        // First get all matching shareholder IDs if shareholder filters exist
+        let shareholderIds;
+        if (membersCode || fullName || civilId || mobileNumber) {
+            const shareholderQuery = {};
+            if (membersCode) shareholderQuery.membersCode = new RegExp(`^${membersCode}`, 'i');
+            if (civilId) shareholderQuery.civilId = new RegExp(`^${civilId}`, 'i');
+            if (mobileNumber) shareholderQuery.mobileNumber = new RegExp(`^${mobileNumber}`, 'i');
+            if (fullName) {
+                shareholderQuery.$or = [
+                    { fName: new RegExp(fullName, 'i') },
+                    { lName: new RegExp(fullName, 'i') }
+                ];
+            }
+            const shareholders = await Shareholder.find(shareholderQuery).select('_id');
+            shareholderIds = shareholders.map(s => s._id);
+            if (shareholderIds.length > 0) {
+                queryConditions.shareholder = { $in: shareholderIds };
+            } else {
+                // If no shareholders match the filter, return empty result
+                return res.status(200).json({
+                    success: true,
+                    count: 0,
+                    data: []
+                });
+            }
+        }
+
+        // Get admin IDs if admin filter exists
+        let adminIds;
         if (admin) {
-            query = query.populate({
-                path: 'admin',
-                match: {
-                    $or: [
-                        { fName: new RegExp(admin, 'i') },
-                        { lName: new RegExp(admin, 'i') }
-                    ]
-                }
-            });
-        } else {
-            query = query.populate('admin');
+            const adminQuery = {
+                $or: [
+                    { fName: new RegExp(admin, 'i') },
+                    { lName: new RegExp(admin, 'i') }
+                ]
+            };
+            const admins = await User.find(adminQuery).select('_id');
+            adminIds = admins.map(a => a._id);
+            if (adminIds.length > 0) {
+                queryConditions.admin = { $in: adminIds };
+            } else {
+                // If no admins match the filter, return empty result
+                return res.status(200).json({
+                    success: true,
+                    count: 0,
+                    data: []
+                });
+            }
         }
 
-        // Execute query with pagination
-        const [histories, totalCount] = await Promise.all([
-            query
-                .skip(skip)
-                .limit(resultsPerPage)
-                .lean(),
-            WithdrawalHistory.countDocuments(query.getQuery())
-        ]);
+        // Get total count
+        const totalCount = await WithdrawalHistory.countDocuments(queryConditions);
 
-        // Filter out records where populated fields are null due to match conditions
-        const filteredHistories = histories.filter(history =>
-            history.shareholder &&
-            (!admin || history.admin)
-        );
-
-        // Adjust count based on filtered results
-        const finalCount = admin || membersCode || fullName || civilId || mobileNumber
-            ? filteredHistories.length
-            : totalCount;
+        // Get paginated data with populated fields
+        const histories = await WithdrawalHistory.find(queryConditions)
+            .populate('shareholder')
+            .populate('admin')
+            .populate('savings')
+            .populate('shares')
+            .populate('amanat')
+            .skip(skip)
+            .limit(resultsPerPage)
+            .lean();
 
         res.status(200).json({
             success: true,
-            count: finalCount,
-            data: filteredHistories
+            count: totalCount,
+            data: histories
         });
     } catch (error) {
         res.status(500).json({
