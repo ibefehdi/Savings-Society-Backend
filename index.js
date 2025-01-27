@@ -99,26 +99,26 @@ console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
 
-// mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
-//     .catch((err) => console.log("Error connecting to MongoDB", err));
-mongoose.connect(mongoURI)
-    .then(async () => {
-        console.log("Connected to MongoDB.");
-        
-        // Run the 2024 share correction
-        console.log("Starting 2024 share correction...");
-        const shares = await Share.find();
-        for (let share of shares) {
-            try {
-                const correctedAmount = await share.correct2024InterestCalculation();
-                console.log(`Corrected share ${share._id} to amount: ${correctedAmount}`);
-            } catch (err) {
-                console.error('Error correcting share:', err);
-            }
-        }
-        console.log("Completed 2024 share correction.");
-    })
+mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
     .catch((err) => console.log("Error connecting to MongoDB", err));
+// mongoose.connect(mongoURI)
+//     .then(async () => {
+//         console.log("Connected to MongoDB.");
+
+//         // Run the 2024 share correction
+//         console.log("Starting 2024 share correction...");
+//         const shares = await Share.find();
+//         for (let share of shares) {
+//             try {
+//                 const correctedAmount = await share.correct2024InterestCalculation();
+//                 console.log(`Corrected share ${share._id} to amount: ${correctedAmount}`);
+//             } catch (err) {
+//                 console.error('Error correcting share:', err);
+//             }
+//         }
+//         console.log("Completed 2024 share correction.");
+//     })
+//     .catch((err) => console.log("Error connecting to MongoDB", err));
 // mongoose.connect(mongoURI)
 //     .then(async () => {
 //         console.log("Connected to MongoDB.");
