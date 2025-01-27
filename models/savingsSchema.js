@@ -63,6 +63,7 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
     }
 
     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+    const monthlyIncreaseRate = annualIncreaseRate / 12;
 
     for (const deposit of this.deposits) {
         if (!this.withdrawn) {  // Only process if not withdrawn
@@ -72,20 +73,18 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
             lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
 
             const timeSinceLastUpdate = now - lastUpdateDate;
-            const yearFractionSinceLastUpdate = timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 365);
+            const monthsSinceLastUpdate = Math.floor(timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 30.44)); // Average days per month
 
-            if (yearFractionSinceLastUpdate > 0) {
-                let calculatedAmount = deposit.currentAmount * Math.pow(1 + annualIncreaseRate, yearFractionSinceLastUpdate);
-                let interestAmount = calculatedAmount - deposit.currentAmount;
+            if (monthsSinceLastUpdate > 0) {
+                // Simple interest formula: Principal * Rate * Time
+                let interestAmount = deposit.currentAmount * monthlyIncreaseRate * monthsSinceLastUpdate;
 
                 this.savingsIncrease += interestAmount;
-                deposit.currentAmount = calculatedAmount;
+                deposit.currentAmount += interestAmount;
                 deposit.lastUpdateDate = now;
             }
         }
     }
-
-    // this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
 
     await this.save();
     console.log("This is what it returns", (this.totalAmount + this.savingsIncrease));
