@@ -264,7 +264,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
                 'رقم العضوية': shareholder.membersCode,
                 'اسم المساهم': shareholder.fName,
                 'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-                
+
                 'رقم مدني': shareholder.civilId || 'NULL',
                 'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
                 'ايبان البنك': shareholder.ibanNumber || '0',
@@ -1420,29 +1420,29 @@ exports.removeShareholderSavings = async (req, res) => {
         // Find the shareholder by membersCode
         const shareholder = await Shareholder.findOne({ membersCode });
         if (!shareholder) {
-            return res.status(404).send({ 
-                status: 1, 
+            return res.status(404).send({
+                status: 1,
                 message: "Shareholder not found.",
-                messageArabic: "لم يتم العثور على المساهم" 
+                messageArabic: "لم يتم العثور على المساهم"
             });
         }
 
         // Check if shareholder has any savings
         if (!shareholder.savings) {
-            return res.status(400).send({ 
-                status: 1, 
+            return res.status(400).send({
+                status: 1,
                 message: "No savings found for this shareholder.",
-                messageArabic: "لم يتم العثور على مدخرات لهذا المساهم" 
+                messageArabic: "لم يتم العثور على مدخرات لهذا المساهم"
             });
         }
 
         // Get the current savings record
         const savings = await Saving.findById(shareholder.savings);
         if (!savings) {
-            return res.status(404).send({ 
-                status: 1, 
+            return res.status(404).send({
+                status: 1,
                 message: "Savings record not found.",
-                messageArabic: "لم يتم العثور على سجل المدخرات" 
+                messageArabic: "لم يتم العثور على سجل المدخرات"
             });
         }
 
@@ -1476,10 +1476,10 @@ exports.removeShareholderSavings = async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).send({ 
-            status: 1, 
+        res.status(500).send({
+            status: 1,
             message: "Internal server error.",
-            messageArabic: "خطأ داخلي في الخادم" 
+            messageArabic: "خطأ داخلي في الخادم"
         });
     }
 };
@@ -2681,7 +2681,7 @@ exports.getShareholderFinancials = async (req, res) => {
         const share = shareholder.share ? shareholder.share.totalShareAmount : null;
         const shareValue = shareholder.share ? shareholder.share.totalAmount : null;
         const shareIncrease = shareholder.share ? shareholder.share.shareIncrease : null
-        const totalInterest = shareholder.savings ? shareholder.savings.totalAmount : null;
+        const totalInterest = shareholder.savings ? shareholder.savings.savingsIncrease : null;
         const alraseed = shareholder.savings ? shareholder.savings.alraseed : null
         console.log(shareholder.savings.amanat)
         // Prepare the response.
