@@ -166,16 +166,18 @@ savingsSchema.methods.correct2024InterestCalculation = async function () {
         return 0;
     }
 
-    // Reset the 2024 savings increase
-    let corrected2024Increase = 0;
-    let originalDepositsTotal = 0;
+    // Reset values
+    this.savingsIncrease = 0;
 
-    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
-    const monthlyIncreaseRate = annualIncreaseRate / 12;
+    const annualIncreaseRate = shareConfig.individualSharePercentage / 100; // 12% = 0.12
+    const monthlyRate = annualIncreaseRate / 12; // 0.12 / 12 = 0.01 (1% per month)
 
+    // For each deposit calculate monthly interest
     for (const deposit of this.deposits) {
+        // Reset current amount to initial amount first
+        deposit.currentAmount = deposit.initialAmount;
+
         const depositDate = new Date(deposit.date);
-        originalDepositsTotal += deposit.initialAmount;
 
         // Only process deposits made in or before 2024
         if (depositDate.getFullYear() <= targetYear) {
@@ -188,27 +190,27 @@ savingsSchema.methods.correct2024InterestCalculation = async function () {
             const months = (12 - startDate.getMonth());
 
             if (months > 0) {
-                // Simple interest formula: Principal * Rate * Time
-                const interestAmount = deposit.initialAmount * monthlyIncreaseRate * months;
-                corrected2024Increase += interestAmount;
+                // Simple interest = Principal * Rate * Time
+                // For 1000 KD at 12% annually, this would be:
+                // 1000 * (0.12/12) * 12 = 120 KD for a full year
+                const monthlyInterest = deposit.initialAmount * monthlyRate;
+                const totalInterest = monthlyInterest * months;
+
+                this.savingsIncrease += totalInterest;
+                deposit.currentAmount += totalInterest;
             }
         }
     }
 
-    // Store the corrected 2024 calculation
-    this.corrected2024Interest = corrected2024Increase;
-
-    // Calculate the difference between original and corrected calculations
-    const original2024Interest = this.savingsIncrease; // assuming this holds the original compound interest
-    this.savingsIncrease = corrected2024Increase - original2024Interest;
+    // Update total amount
+    this.totalAmount = this.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0);
 
     await this.save();
 
     return {
-        original2024Interest: original2024Interest,
-        corrected2024Interest: corrected2024Increase,
-        difference: this.savingsIncrease,
-        message: "This shows the difference between the compound and simple interest calculations for 2024. You may need to adjust accounts based on this difference."
+        initialTotal: this.totalAmount,
+        savingsIncrease: this.savingsIncrease,
+        finalTotal: this.totalAmount + this.savingsIncrease
     };
 };
 module.exports = mongoose.model('Savings', savingsSchema);
