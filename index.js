@@ -99,26 +99,26 @@ console.log(schedule)
 app.use(passport.initialize());
 app.use(passport.session());
 
-// mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
-//     .catch((err) => console.log("Error connecting to MongoDB", err));
-mongoose.connect(mongoURI)
-    .then(async () => {
-        console.log("Connected to MongoDB.");
-
-        // Run the 2024 interest correction on startup
-        console.log("Starting 2024 interest correction...");
-        const savings = await Saving.find();
-        for (let saving of savings) {
-            try {
-                const correction = await saving.correct2024InterestCalculation();
-                console.log(`Corrected savings for ID ${saving._id}:`, correction);
-            } catch (err) {
-                console.error('Error correcting savings:', err);
-            }
-        }
-        console.log("Completed 2024 interest correction.");
-    })
+mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
     .catch((err) => console.log("Error connecting to MongoDB", err));
+// mongoose.connect(mongoURI)
+//     .then(async () => {
+//         console.log("Connected to MongoDB.");
+
+//         // Run the 2024 interest correction on startup
+//         console.log("Starting 2024 interest correction...");
+//         const savings = await Saving.find();
+//         for (let saving of savings) {
+//             try {
+//                 const correction = await saving.correct2024InterestCalculation();
+//                 console.log(`Corrected savings for ID ${saving._id}:`, correction);
+//             } catch (err) {
+//                 console.error('Error correcting savings:', err);
+//             }
+//         }
+//         console.log("Completed 2024 interest correction.");
+//     })
+//     .catch((err) => console.log("Error connecting to MongoDB", err));
 passport.use(
     new LocalStrategy(async function (username, password, done) {
         try {
