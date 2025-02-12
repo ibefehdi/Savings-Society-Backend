@@ -8,4 +8,8 @@ const withdrawalHistoryController = require('../controllers/WithdrawalHistoryCon
 router.get('/withdrawalhistory', withdrawalHistoryController.getAllWithdrawalHistory);
 router.get('/withdrawal-history-report', withdrawalHistoryController.getWithdrawalHistoryReportExport);
 router.get('/TransferHistory', withdrawalHistoryController.getAllTransferLog);
+router.delete('/withdrawalhistory/:id', withdrawalHistoryController.deleteWithdrawalHistory);
+router.delete('/TransferHistory/:id', withdrawalHistoryController.deleteTransferHistory);
+
+
 module.exports = router;

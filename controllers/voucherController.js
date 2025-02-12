@@ -1,6 +1,8 @@
 const Voucher = require('../models/voucherSchema');
 const Transaction = require('../models/transactionSchema');
 const Tenant = require('../models/tenantSchema');
+const Flat = require('../models/flatSchema');
+
 const Building = require('../models/buildingSchema');
 const excel = require('exceljs');
 const { stringify } = require('csv-stringify');
@@ -32,6 +34,23 @@ exports.getAllVouchers = async (req, res) => {
             }
         }
 
+        // Add flat filter
+        if (req.query.flatId) {
+            try {
+                filter.flatId = new mongoose.Types.ObjectId(req.query.flatId);
+
+                // Verify if the flat exists
+                const flat = await Flat.findById(filter.flatId);
+                if (!flat) {
+                    console.log('Flat not found:', req.query.flatId);
+                    return res.status(404).json({ error: 'Flat not found' });
+                }
+            } catch (error) {
+                console.error('Invalid flatId format:', req.query.flatId);
+                return res.status(400).json({ error: 'Invalid flatId format' });
+            }
+        }
+
         if (req.query.tenantName) {
             filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
         }
@@ -44,14 +63,10 @@ exports.getAllVouchers = async (req, res) => {
             filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
 
-        if (req.query.amount) {
-            const amount = parseFloat(req.query.amount);
-            if (!isNaN(amount)) {
-                filter.amount = amount;
-            } else {
-                console.error('Invalid amount format:', req.query.amount);
-                return res.status(400).json({ error: 'Invalid amount format' });
-            }
+        if (req.query.voucherNo) {
+            // Convert to string and escape special characters for regex
+            const searchPattern = req.query.voucherNo.toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            filter.voucherNo = { $regex: `^${searchPattern}`, $options: 'i' };
         }
 
         console.log('Filter:', JSON.stringify(filter, (key, value) =>

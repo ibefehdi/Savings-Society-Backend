@@ -519,7 +519,7 @@ exports.getAllQuitShareholderByYear = async (req, res) => {
             let shareIncrease = share ? share.shareIncrease : 0;;
             let shareCurrentAmount = 0;
 
-            shareCurrentAmount = share.totalAmount;
+            shareCurrentAmount = share?.totalAmount || 0;
 
 
             // Calculate the savings increase and current amount

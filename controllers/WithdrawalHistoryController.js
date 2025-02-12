@@ -140,6 +140,21 @@ exports.getWithdrawalHistoryReportExport = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+exports.deleteWithdrawalHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedRecord = await WithdrawalHistory.findByIdAndDelete(id);
+        
+        if (!deletedRecord) {
+            return res.status(404).json({ message: 'Withdrawal history record not found' });
+        }
+        
+        res.status(200).json({ message: 'Withdrawal history record deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting withdrawal history record', error: error.message });
+    }
+};
+
 exports.getAllTransferLog = async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
@@ -281,5 +296,21 @@ exports.getAllTransferLog = async (req, res) => {
             message: 'Server Error: Unable to retrieve transfer logs',
             error: error.message
         });
+    }
+};
+
+
+exports.deleteTransferHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedRecord = await TransferLog.findByIdAndDelete(id);
+        
+        if (!deletedRecord) {
+            return res.status(404).json({ message: 'TransferLog history record not found' });
+        }
+        
+        res.status(200).json({ message: 'TransferLog history record deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting TransferLog history record', error: error.message });
     }
 };

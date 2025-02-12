@@ -128,7 +128,7 @@ mongoose.connect(mongoURI).then(() => console.log("Connected to MongoDB."))
 //         const savings = await Saving.find();
 //         for (let saving of savings) {
 //             try {
-//                 const correction = await saving.correct2024InterestCalculation();
+//                 const correction = await saving.calculateCurrentPrice();
 //                 console.log(`Corrected savings for ID ${saving._id}:`, correction);
 //             } catch (err) {
 //                 console.error('Error correcting savings:', err);

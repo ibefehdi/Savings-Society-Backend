@@ -7,5 +7,6 @@ const depositHistoryController = require('../controllers/DepositHistoryControlle
 // Route to get all deposit histories
 router.get('/deposithistory', depositHistoryController.getAllDepositHistory);
 router.get('/deposit-history-report', depositHistoryController.getDepositHistoryReportExport);
+router.delete('/deposithistory/:id', depositHistoryController.deleteDepositHistory);
 
 module.exports = router;

@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 const savingsConfigSchema = require('./savingsConfigSchema');
+const TransferLog = require('./transferLogSchema');
+const Shareholder = require('./shareholderSchema');
+
 const Amanat = require('./amanatSchema')
 const adminIdSchema = new mongoose.Schema({
     admin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -58,7 +61,7 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
 
     const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
     if (!shareConfig) {
-        console.log(`No savings configuration found for this year.`);
+        console.log('No savings configuration found for this year.');
         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
     }
 
@@ -84,6 +87,42 @@ savingsSchema.methods.calculateCurrentPrice = async function () {
                 deposit.lastUpdateDate = now;
             }
         }
+    }
+
+    // Calculate the total amount after updating the deposits
+    const totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+    const shareholder = await Shareholder.findOne({ savings: this.id })
+    console.log(shareholder)
+    // Check if the total amount exceeds 1000
+    if (totalAmount >= 1000) {
+        // Create a new TransferLog entry for Amanat
+        const transferLog = new TransferLog({
+            shareholder: shareholder._id,
+            fromSavings: this._id,
+            toAmanat: this.amanat, // Assuming you have a reference to Amanat
+            amount: totalAmount,
+            date: now,
+            transferType: 'Amanat',
+        });
+
+        await transferLog.save();
+
+        // Reset the savings amount after transferring to Amanat
+        this.deposits.forEach(deposit => {
+            deposit.currentAmount = 0;
+        });
+        this.savingsIncrease = 0;
+    } else {
+        // Create a new TransferLog entry for Savings
+        const transferLog = new TransferLog({
+            shareholder: shareholder,
+            fromSavings: this._id,
+            amount: totalAmount,
+            date: now,
+            transferType: 'Savings',
+        });
+
+        await transferLog.save();
     }
 
     await this.save();
