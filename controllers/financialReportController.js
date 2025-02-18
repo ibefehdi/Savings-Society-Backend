@@ -167,10 +167,10 @@ exports.getAllShareholderReport = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = share ? share.shareIncrease : 0;;
+            let shareIncrease = share ? share.shareIncrease : 0;
             let shareCurrentAmount = 0;
 
-            shareCurrentAmount = share.totalAmount;
+            shareCurrentAmount = share ? share?.totalAmount : 0;
 
 
             // Get the savings increase directly from the savings record
