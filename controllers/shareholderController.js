@@ -188,6 +188,7 @@ exports.changeAlRaseed = async (req, res) => {
 }
 exports.getAllShareholdersFormatted = async (req, res) => {
     try {
+        // Query parameters setup (same as before)
         const page = parseInt(req.query.page, 10) || 1;
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
@@ -202,7 +203,6 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         let queryConditions = {
             membersCode: {
                 $ne: 0,  // Exclude membersCode 0
-
             }
         };
         if (status) queryConditions.status = status;
@@ -218,10 +218,48 @@ exports.getAllShareholdersFormatted = async (req, res) => {
             .populate('address')
             .populate('share')
             .populate({ path: 'savings', populate: { path: 'amanat', model: 'Amanat' } })
-            .collation({ locale: "en_US", numericOrdering: true }) // Enable numeric sorting
-            .sort({ membersCode: 1 }); // Sort by membersCode in ascending order
+            .collation({ locale: "en_US", numericOrdering: true })
+            .sort({ membersCode: 1 });
 
-        const csvStringifier = stringify({
+        // Import the synchronous version of csv-stringify (if you're using this package)
+        // Make sure it's installed: npm install csv-stringify
+        const { stringify } = require('csv-stringify/sync');
+        
+        // Prepare all data rows
+        const rows = shareholders.map(shareholder => {
+            let shareCurrentAmount = 0;
+            if (shareholder.share && shareholder.share.purchases) {
+                shareCurrentAmount = shareholder.share.totalAmount || 0;
+            }
+
+            let savingsCurrentAmount = 0;
+            let amanatAmount = 0;
+            if (shareholder.savings) {
+                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
+                if (shareholder.savings.amanat) {
+                    amanatAmount = shareholder.savings.amanat.amount || 0;
+                }
+            }
+
+            return {
+                'رقم العضوية': shareholder.membersCode,
+                'اسم المساهم': shareholder.fName,
+                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'رقم مدني': shareholder.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'ايبان البنك': shareholder.ibanNumber || '0',
+                'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
+                'بلوك': shareholder.address ? shareholder.address.block : '',
+                'شارع': shareholder.address ? shareholder.address.street : '',
+                'منزل': shareholder.address ? shareholder.address.house : '',
+                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount : '0.000',
+                'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
+                'قيمة المدخرات': (savingsCurrentAmount)
+            };
+        });
+
+        // Generate the entire CSV in memory
+        const csvContent = stringify(rows, {
             header: true,
             columns: [
                 'رقم العضوية',
@@ -240,50 +278,15 @@ exports.getAllShareholdersFormatted = async (req, res) => {
             ]
         });
 
+        // Now send the entire CSV at once
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="shareholders.csv"');
         res.write('\uFEFF');  // UTF-8 BOM
-        csvStringifier.pipe(res);
-
-        shareholders.forEach((shareholder) => {
-            let shareCurrentAmount = 0;
-            if (shareholder.share && shareholder.share.purchases) {
-                shareCurrentAmount = shareholder.share.totalAmount || 0;
-            }
-
-            let savingsCurrentAmount = 0;
-            let amanatAmount = 0;
-            if (shareholder.savings) {
-                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
-                if (shareholder.savings.amanat) {
-                    amanatAmount = shareholder.savings.amanat.amount || 0;
-                }
-            }
-
-            const row = {
-                'رقم العضوية': shareholder.membersCode,
-                'اسم المساهم': shareholder.fName,
-                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-
-                'رقم مدني': shareholder.civilId || 'NULL',
-                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
-                'ايبان البنك': shareholder.ibanNumber || '0',
-                'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
-                'بلوك': shareholder.address ? shareholder.address.block : '',
-                'شارع': shareholder.address ? shareholder.address.street : '',
-                'منزل': shareholder.address ? shareholder.address.house : '',
-                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount : '0.000',
-                'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
-                'قيمة المدخرات': (savingsCurrentAmount)
-            };
-
-            csvStringifier.write(row);
-        });
-
-        csvStringifier.end();
+        return res.end(csvContent);
 
     } catch (err) {
-        res.status(500).send({ message: err.message });
+        // This will only be reached if an error occurs before we try to send a response
+        return res.status(500).send({ message: err.message });
     }
 };
 exports.getAllShareholdersSharesFormatted = async (req, res) => {
