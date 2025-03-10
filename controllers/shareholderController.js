@@ -224,37 +224,39 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         // Import the synchronous version of csv-stringify (if you're using this package)
         // Make sure it's installed: npm install csv-stringify
         const { stringify } = require('csv-stringify/sync');
-        
-        // Prepare all data rows
-        const rows = shareholders.map(shareholder => {
-            let shareCurrentAmount = 0;
-            if (shareholder.share && shareholder.share.purchases) {
-                shareCurrentAmount = shareholder.share.totalAmount || 0;
-            }
 
-            let savingsCurrentAmount = 0;
-            let amanatAmount = 0;
-            if (shareholder.savings) {
-                savingsCurrentAmount = shareholder.savings.totalAmount || 0;
-                if (shareholder.savings.amanat) {
-                    amanatAmount = shareholder.savings.amanat.amount || 0;
-                }
-            }
+        // Prepare all data rows with comprehensive null safety
+        const rows = shareholders.map(shareholder => {
+            // Safely check for existence of all nested properties
+            const shareCurrentAmount = shareholder?.share?.totalAmount || 0;
+
+            // Safely check for savings data
+            const savingsCurrentAmount = shareholder?.savings?.totalAmount || 0;
+            const amanatAmount = shareholder?.savings?.amanat?.amount || 0;
+
+            // Safe access to address fields
+            const block = shareholder?.address?.block || '';
+            const street = shareholder?.address?.street || '';
+            const house = shareholder?.address?.house || '';
+
+            // Safe access to share fields
+            const totalShareAmount = shareholder?.share?.totalShareAmount || 0;
+            const totalAmount = shareholder?.share?.totalAmount || 0;
 
             return {
-                'رقم العضوية': shareholder.membersCode,
-                'اسم المساهم': shareholder.fName,
-                'تاريخ الميلاد': shareholder.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
-                'رقم مدني': shareholder.civilId || 'NULL',
-                'تاريخ الانتساب': shareholder.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
-                'ايبان البنك': shareholder.ibanNumber || '0',
-                'رقم التليفون': shareholder.mobileNumber || shareholder.mobileNumber === '' ? shareholder.mobileNumber : 'N/A',
-                'بلوك': shareholder.address ? shareholder.address.block : '',
-                'شارع': shareholder.address ? shareholder.address.street : '',
-                'منزل': shareholder.address ? shareholder.address.house : '',
-                'عدد الاسهم': (shareholder.share && shareholder.share.totalShareAmount) ? shareholder.share.totalShareAmount : '0.000',
-                'قيم الاسهم': shareholder.share.totalAmount.toFixed(0),
-                'قيمة المدخرات': (savingsCurrentAmount)
+                'رقم العضوية': shareholder?.membersCode || '',
+                'اسم المساهم': shareholder?.fName || '',
+                'تاريخ الميلاد': shareholder?.DOB ? moment(shareholder.DOB).format('DD/MM/YYYY') : '',
+                'رقم مدني': shareholder?.civilId || 'NULL',
+                'تاريخ الانتساب': shareholder?.joinDate ? moment(shareholder.joinDate).format('DD/MM/YYYY') : '',
+                'ايبان البنك': shareholder?.ibanNumber || '0',
+                'رقم التليفون': shareholder?.mobileNumber ? shareholder.mobileNumber : 'N/A',
+                'بلوك': block,
+                'شارع': street,
+                'منزل': house,
+                'عدد الاسهم': totalShareAmount.toString(),
+                'قيم الاسهم': typeof totalAmount === 'number' ? totalAmount.toFixed(0) : '0',
+                'قيمة المدخرات': savingsCurrentAmount.toString()
             };
         });
 
@@ -285,6 +287,7 @@ exports.getAllShareholdersFormatted = async (req, res) => {
         return res.end(csvContent);
 
     } catch (err) {
+        console.error('Error generating CSV:', err);
         // This will only be reached if an error occurs before we try to send a response
         return res.status(500).send({ message: err.message });
     }
