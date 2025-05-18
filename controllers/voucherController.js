@@ -18,6 +18,7 @@ exports.getAllVouchers = async (req, res) => {
         // Create a filter object
         let filter = {};
 
+        // Building filter - existing
         if (req.query.buildingId) {
             try {
                 filter.buildingId = new mongoose.Types.ObjectId(req.query.buildingId);
@@ -34,7 +35,7 @@ exports.getAllVouchers = async (req, res) => {
             }
         }
 
-        // Add flat filter
+        // Flat filter - existing
         if (req.query.flatId) {
             try {
                 filter.flatId = new mongoose.Types.ObjectId(req.query.flatId);
@@ -51,22 +52,70 @@ exports.getAllVouchers = async (req, res) => {
             }
         }
 
+        // Tenant name filter - existing
         if (req.query.tenantName) {
             filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
         }
 
+        // Civil ID filter - existing
         if (req.query.civilId) {
             filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
         }
 
+        // Contact number filter - existing
         if (req.query.contactNumber) {
             filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
         }
 
+        // Voucher number filter - existing
         if (req.query.voucherNo) {
             // Convert to string and escape special characters for regex
             const searchPattern = req.query.voucherNo.toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             filter.voucherNo = { $regex: `^${searchPattern}`, $options: 'i' };
+        }
+
+        // NEW FILTER: Amount range filter
+        if (req.query.amountMin || req.query.amountMax) {
+            filter.amount = {};
+            if (req.query.amountMin) {
+                filter.amount.$gte = parseFloat(req.query.amountMin);
+            }
+            if (req.query.amountMax) {
+                filter.amount.$lte = parseFloat(req.query.amountMax);
+            }
+        }
+
+        // NEW FILTER: Status filter
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+
+        // NEW FILTER: Pending date range filter
+        if (req.query.pendingDateFrom || req.query.pendingDateTo) {
+            filter.pendingDate = {};
+            if (req.query.pendingDateFrom) {
+                filter.pendingDate.$gte = new Date(req.query.pendingDateFrom);
+            }
+            if (req.query.pendingDateTo) {
+                // Set the time to end of day for the 'to' date
+                const toDate = new Date(req.query.pendingDateTo);
+                toDate.setHours(23, 59, 59, 999);
+                filter.pendingDate.$lte = toDate;
+            }
+        }
+
+        // NEW FILTER: Paid date range filter
+        if (req.query.paidDateFrom || req.query.paidDateTo) {
+            filter.paidDate = {};
+            if (req.query.paidDateFrom) {
+                filter.paidDate.$gte = new Date(req.query.paidDateFrom);
+            }
+            if (req.query.paidDateTo) {
+                // Set the time to end of day for the 'to' date
+                const toDate = new Date(req.query.paidDateTo);
+                toDate.setHours(23, 59, 59, 999);
+                filter.paidDate.$lte = toDate;
+            }
         }
 
         console.log('Filter:', JSON.stringify(filter, (key, value) =>

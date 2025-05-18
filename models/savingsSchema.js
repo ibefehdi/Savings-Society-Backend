@@ -52,144 +52,232 @@ savingsSchema.set('toObject', { getters: true });
 savingsSchema.set('toJSON', { getters: true });
 
 
-savingsSchema.methods.calculateCurrentPrice = async function () {
-    const now = new Date();
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     const now = new Date();
 
-    if (this.withdrawn) {
-        return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
-    }
+//     if (this.withdrawn) {
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
 
-    const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
-    if (!shareConfig) {
-        console.log('No savings configuration found for this year.');
-        return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
-    }
+//     const shareConfig = await savingsConfigSchema.findOne({ year: this.year });
+//     if (!shareConfig) {
+//         console.log('No savings configuration found for this year.');
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
 
-    const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
-    const monthlyIncreaseRate = annualIncreaseRate / 12;
+//     const annualIncreaseRate = shareConfig.individualSharePercentage / 100;
+//     const monthlyIncreaseRate = annualIncreaseRate / 12;
 
-    for (const deposit of this.deposits) {
-        if (!this.withdrawn) {  // Only process if not withdrawn
-            let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
+//     for (const deposit of this.deposits) {
+//         if (!this.withdrawn) {  // Only process if not withdrawn
+//             let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
 
-            // Set the last update date to the first day of the next month after the deposit date
-            lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
+//             // Set the last update date to the first day of the next month after the deposit date
+//             lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
 
-            const timeSinceLastUpdate = now - lastUpdateDate;
-            const monthsSinceLastUpdate = Math.floor(timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 30.44)); // Average days per month
+//             const timeSinceLastUpdate = now - lastUpdateDate;
+//             const monthsSinceLastUpdate = Math.floor(timeSinceLastUpdate / (1000 * 60 * 60 * 24 * 30.44)); // Average days per month
 
-            if (monthsSinceLastUpdate > 0) {
-                // Simple interest formula: Principal * Rate * Time
-                let interestAmount = deposit.currentAmount * monthlyIncreaseRate * monthsSinceLastUpdate;
+//             if (monthsSinceLastUpdate > 0) {
+//                 // Simple interest formula: Principal * Rate * Time
+//                 let interestAmount = deposit.currentAmount * monthlyIncreaseRate * monthsSinceLastUpdate;
 
-                this.savingsIncrease += interestAmount;
-                deposit.currentAmount += interestAmount;
-                deposit.lastUpdateDate = now;
-            }
-        }
-    }
+//                 this.savingsIncrease += interestAmount;
+//                 deposit.currentAmount += interestAmount;
+//                 deposit.lastUpdateDate = now;
+//             }
+//         }
+//     }
 
-    // Calculate the total amount after updating the deposits
-    const totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
-    const shareholder = await Shareholder.findOne({ savings: this.id })
-    console.log(shareholder)
-    // Check if the total amount exceeds 1000
-    if (totalAmount >= 1000) {
-        // Create a new TransferLog entry for Amanat
-        const transferLog = new TransferLog({
-            shareholder: shareholder._id,
-            fromSavings: this._id,
-            toAmanat: this.amanat, // Assuming you have a reference to Amanat
-            amount: totalAmount,
-            date: now,
-            transferType: 'Amanat',
-        });
+//     // Calculate the total amount after updating the deposits
+//     const totalAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     const shareholder = await Shareholder.findOne({ savings: this.id })
+//     console.log(shareholder)
+//     // Check if the total amount exceeds 1000
+//     if (totalAmount >= 1000) {
+//         // Create a new TransferLog entry for Amanat
+//         const transferLog = new TransferLog({
+//             shareholder: shareholder._id,
+//             fromSavings: this._id,
+//             toAmanat: this.amanat, // Assuming you have a reference to Amanat
+//             amount: totalAmount,
+//             date: now,
+//             transferType: 'Amanat',
+//         });
 
-        await transferLog.save();
+//         await transferLog.save();
 
-        // Reset the savings amount after transferring to Amanat
-        this.deposits.forEach(deposit => {
-            deposit.currentAmount = 0;
-        });
-        this.savingsIncrease = 0;
-    } else {
-        // Create a new TransferLog entry for Savings
-        const transferLog = new TransferLog({
-            shareholder: shareholder,
-            fromSavings: this._id,
-            amount: totalAmount,
-            date: now,
-            transferType: 'Savings',
-        });
+//         // Reset the savings amount after transferring to Amanat
+//         this.deposits.forEach(deposit => {
+//             deposit.currentAmount = 0;
+//         });
+//         this.savingsIncrease = 0;
+//     } else {
+//         // Create a new TransferLog entry for Savings
+//         const transferLog = new TransferLog({
+//             shareholder: shareholder,
+//             fromSavings: this._id,
+//             amount: totalAmount,
+//             date: now,
+//             transferType: 'Savings',
+//         });
 
-        await transferLog.save();
-    }
+//         await transferLog.save();
+//     }
 
-    await this.save();
-    console.log("This is what it returns", (this.totalAmount + this.savingsIncrease));
-    console.log("Savings Increase: " + this.savingsIncrease);
-    return this.savingsIncrease;
-};
-savingsSchema.methods.calculateAdjustedIncrease = async function () {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    console.log("Current Year: " + currentYear);
-    console.log("Current Month: " + currentMonth);
+//     await this.save();
+//     console.log("This is what it returns", (this.totalAmount + this.savingsIncrease));
+//     console.log("Savings Increase: " + this.savingsIncrease);
+//     return this.savingsIncrease;
+// };
+// savingsSchema.methods.calculateCurrentPrice = async function () {
+//     console.log("Calculating current price for savings");
+//     const now = new Date();
 
-    if (this.withdrawn) {
-        return 0; // No increase for withdrawn savings
-    }
+//     if (this.withdrawn) {
+//         console.log("Savings is withdrawn, returning total amount");
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
 
-    const shareConfig = await savingsConfigSchema.findOne({ year: currentYear });
-    if (!shareConfig) {
-        console.log(`No savings configuration found for this year.`);
-        return 0;
-    }
-    console.log(shareConfig);
-    const annualIncreaseRate = shareConfig.individualSharePercentage;
-    const monthlyIncreaseRate = annualIncreaseRate / 12;
-    let totalIncrease = 0;
+//     // Find the savings configuration for the year
+//     const savingsConfig = await savingsConfigSchema.findOne({ year: this.year });
+//     if (!savingsConfig) {
+//         console.log(`No savings configuration found for year ${this.year}`);
+//         return this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+//     }
 
-    // Calculate the total initial deposits
-    const totalDeposits = this.deposits.reduce((sum, deposit) => sum + deposit.initialAmount, 0);
+//     // Reset savings increase for new calculation
+//     this.savingsIncrease = 0;
+//     // For reporting purposes
+//     this.savingsIncreaseReporting = 0;
 
-    // Calculate the difference between total amount and total deposits
-    const previousYearInterest = this.totalAmount - totalDeposits;
+//     // Fixed annual rate of 12% for savings
+//     const annualIncreaseRate = savingsConfig.individualSharePercentage / 100; // Should be 0.12 (12%)
+//     const monthlyIncreaseRate = annualIncreaseRate / 12; // Monthly rate (1% per month)
 
-    // Calculate increase on previous year's interest
-    if (previousYearInterest > 0) {
-        const startDate = new Date(currentYear, 0, 1); // January 1st of current year
-        const endDate = new Date(currentYear, currentMonth, 0); // Last day of previous month
-        const months = (endDate.getMonth() - startDate.getMonth()) + 1;
+//     for (const deposit of this.deposits) {
+//         if (!this.withdrawn) {
+//             // Get last update date or use deposit date if no updates yet
+//             let lastUpdateDate = deposit.lastUpdateDate ? new Date(deposit.lastUpdateDate) : deposit.date;
 
-        const interestAmount = previousYearInterest * (monthlyIncreaseRate / 100) * months;
-        totalIncrease += interestAmount;
-    }
+//             // Set the last update date to the first day of the next month after the deposit date
+//             lastUpdateDate = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth() + 1, 1);
 
-    // Calculate increase on deposits
-    for (const deposit of this.deposits) {
-        const depositDate = new Date(deposit.date);
-        // let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear),
-        //     depositDate.getFullYear() < currentYear ? 0 : depositDate.getMonth() + 1, 1);
-        let startDate = new Date(Math.max(depositDate.getFullYear(), currentYear),
-            depositDate.getMonth(), 1);
-        let endDate = new Date(currentYear, currentMonth, 0); // End at last day of previous month
+//             // Calculate months between last update and now
+//             const monthsDiff = (now.getFullYear() - lastUpdateDate.getFullYear()) * 12 +
+//                 (now.getMonth() - lastUpdateDate.getMonth());
 
-        if (startDate > endDate) {
-            continue; // Skip if deposit is too recent
-        }
+//             if (monthsDiff > 0) {
+//                 // Calculate interest for each month
+//                 const interestAmount = deposit.initialAmount * monthlyIncreaseRate * monthsDiff;
 
-        let months = (endDate.getMonth() - startDate.getMonth()) + 1;
+//                 // Track the interest separately
+//                 this.savingsIncrease += interestAmount;
+//                 this.savingsIncreaseReporting += interestAmount;
 
-        let interestAmount = deposit.initialAmount * (monthlyIncreaseRate / 100) * months;
-        console.log(`Deposit: ${deposit.initialAmount}, Months: ${months}, Interest: ${interestAmount}`);
+//                 // Update current amount with interest
+//                 deposit.currentAmount = deposit.initialAmount + interestAmount;
+//                 deposit.lastUpdateDate = now;
 
-        totalIncrease += interestAmount;
-    }
+//                 console.log(`Deposit: ${deposit.initialAmount} KD, Months: ${monthsDiff}, Interest: ${interestAmount.toFixed(3)} KD`);
+//             }
+//         }
+//     }
 
-    return totalIncrease;
-};
+//     // Calculate the total initial amount and current amount
+//     const totalInitialAmount = this.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0);
+//     const totalCurrentAmount = this.deposits.reduce((total, deposit) => total + deposit.currentAmount, 0);
+
+//     // Update total amount to be the initial savings
+//     this.totalAmount = totalInitialAmount;
+
+//     // Set alraseed as the sum of initial and interest
+//     this.alraseed = totalCurrentAmount;
+
+//     // Calculate total amount with interest
+//     const totalWithInterest = this.totalAmount + this.savingsIncrease;
+
+//     // Find the associated shareholder
+//     const shareholder = await Shareholder.findOne({ savings: this._id });
+//     if (!shareholder) {
+//         console.log("No shareholder found for this savings");
+//         return this.savingsIncrease;
+//     }
+
+//     // Check if the total amount exceeds 1000 KD
+//     if (totalWithInterest >= 1000) {
+//         console.log("Savings exceed 1000 KD, transferring to Amanat");
+
+//         // Check if an Amanat already exists, or create a new one
+//         let amanat = this.amanat ? await Amanat.findById(this.amanat) : null;
+
+//         if (!amanat) {
+//             amanat = new Amanat({
+//                 amount: 0,
+//                 withdrawn: false,
+//                 date: now,
+//                 year: this.year
+//             });
+//             await amanat.save();
+
+//             // Link the Amanat to this savings
+//             this.amanat = amanat._id;
+//         }
+
+//         // Transfer the amount to Amanat
+//         amanat.amount += totalWithInterest;
+//         await amanat.save();
+
+//         // Create a transfer log
+//         const transferLog = new TransferLog({
+//             shareholder: shareholder._id,
+//             fromSavings: this._id,
+//             toAmanat: amanat._id,
+//             amount: totalWithInterest,
+//             date: now,
+//             transferType: 'Amanat',
+//         });
+
+//         await transferLog.save();
+
+//         // Reset savings after transfer
+//         for (const deposit of this.deposits) {
+//             deposit.currentAmount = 0;
+//         }
+
+//         // Keep the reporting value for display purposes
+//         const reportingInterest = this.savingsIncreaseReporting;
+
+//         // Reset actual savings value
+//         this.savingsIncrease = 0;
+//         this.totalAmount = 0;
+//         this.maxReached = true;
+
+//         await this.save();
+
+//         return reportingInterest;
+//     } else {
+//         // If under 1000 KD, just save the updated savings
+
+//         // Create a transfer log for tracking
+//         const transferLog = new TransferLog({
+//             shareholder: shareholder._id,
+//             fromSavings: this._id,
+//             amount: totalWithInterest,
+//             date: now,
+//             transferType: 'Savings',
+//         });
+
+//         await transferLog.save();
+//         await this.save();
+
+//         console.log("Savings calculations completed");
+//         console.log("Total initial amount:", this.totalAmount);
+//         console.log("Savings Increase:", this.savingsIncrease);
+
+//         return this.savingsIncrease;
+//     }
+// };
 savingsSchema.methods.correct2024InterestCalculation = async function () {
     const targetYear = 2024;
     const startOfYear = new Date(targetYear, 0, 1); // January 1st 2024

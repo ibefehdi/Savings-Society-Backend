@@ -859,14 +859,13 @@ exports.removeDuplicateShareholders = async (req, res) => {
         });
     }
 };
-
 exports.createShareholderBackup = async (req, res) => {
     try {
         const sanitizedAddress = {
-            block: sanitizeInput(req.body.block) || 0,
-            street: sanitizeInput(req.body.street) || 0,
-            house: sanitizeInput(req.body.house) || 0,
-            area: sanitizeInput(req.body.area) || 0,
+            block: sanitizeInput(req.body.block),
+            street: sanitizeInput(req.body.street),
+            house: sanitizeInput(req.body.house),
+            area: sanitizeInput(req.body.area),
         };
         const address = await Address.create(sanitizedAddress);
         const workplaceId = sanitizeInput(req.body.workplaceId);
@@ -874,6 +873,7 @@ exports.createShareholderBackup = async (req, res) => {
         const approvalDate = req.body.ApprovalDate;
         const withdrawn = req.body.Withdrawn;
         let workplaceDescription = '';
+
         if (workplaceId) {
             const workplace = await Workplace.findOne({ id: workplaceId.toString() });
             if (workplace) {
@@ -883,15 +883,14 @@ exports.createShareholderBackup = async (req, res) => {
         const sanitizedPurchase = {
             amount: req.body.shareAmount,
             initialAmount: req.body.shareInitialPrice,
-            currentAmount: Number(req.body.shareInitialPrice),
-            date: new Date('2024-01-01'),
-            lastUpdateDate: new Date('2024-01-01'),
+            currentAmount: Number(req.body.shareInitialPrice) + Number(req.body.profitShare),
+            date: new Date(),
+            lastUpdateDate: new Date(),
         };
 
         const sanitizedShare = {
             purchases: [sanitizedPurchase],
-            totalAmount: Number(req.body.shareInitialPrice),
-            // shareIncrease: Number(req.body.profitShare),
+            totalAmount: Number(req.body.shareInitialPrice) + Number(req.body.profitShare),
             totalShareAmount: req.body.shareAmount,
             year: new Date().getFullYear(),
             withdrawn: false,
@@ -905,7 +904,7 @@ exports.createShareholderBackup = async (req, res) => {
         const amanatDocument = {
             amount: amanat || 0,
             withdrawn: false,
-            date: new Date('2024-01-01'),
+            date: new Date(),
             year: new Date().getFullYear(),
         };
         newAmanat = await Amanat.create(amanatDocument);
@@ -913,15 +912,14 @@ exports.createShareholderBackup = async (req, res) => {
 
         const sanitizedDeposit = {
             initialAmount: req.body.savingsInitialPrice,
-            currentAmount: Number(req.body.savingsInitialPrice),
-            date: new Date('2024-01-01'),
-            lastUpdateDate: new Date('2024-01-01'),
+            currentAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
+            date: new Date(),
+            lastUpdateDate: new Date(),
         };
 
         const sanitizedSavings = {
             deposits: [sanitizedDeposit],
-            totalAmount: Number(req.body.savingsInitialPrice),
-            // savingsIncrease: Number(req.body.profitSaving),
+            totalAmount: Number(req.body.savingsInitialPrice) + Number(req.body.profitSaving),
             withdrawn: withdrawn,
             maxReached: false,
             amanat: newAmanat,
@@ -945,10 +943,10 @@ exports.createShareholderBackup = async (req, res) => {
             fullName: sanitizeInput(req.body.fullName),
             membersCode: req.body.membersCode || undefined,
             DOB: sanitizeInput(req.body.dob),
-            civilId: sanitizeInput(req.body.civilId.replace(/'/g, '')), // Strip the apostrophe
+            civilId: sanitizeInput(req.body.civilId.replace(/`/g, '')), // Strip the apostrophe
             ibanNumber: sanitizeInput(req.body.ibanNumber),
             mobileNumber: sanitizeInput(req.body.mobileNumber),
-            gender: sanitizeInput(req.body.gender) || 'male',
+            gender: sanitizeInput(req.body.gender),
             workplace: workplaceDescription,
             withdrawn: false,
             status: 0,
@@ -971,78 +969,78 @@ exports.createShareholderBackup = async (req, res) => {
         const shareholder = await Shareholder.create(sanitizedShareholder);
 
         // Handle transactions
-        // const depositAmount = req.body.depositAmount;
-        // const depositDate = req.body.depositDate;
-        // const withdrawAmount = req.body.withdrawAmount;
-        // const withdrawDate = req.body.withdrawalDate;
-        // const deposit = req.body.Deposit;
-        // const withdraw = req.body.Withdraw;
-        // console.log(typeof (deposit))
-        // console.log("Withdraw: ", withdraw)
-        // console.log("Deposit: ", deposit)
-        // console.log("Deposit Date: ", depositDate)
-        // console.log("Withdraw Date: ", withdrawDate)
-        // if (deposit == "TRUE" || depositAmount || depositDate) {
-        //     const sanitizedDeposit = {
-        //         initialAmount: depositAmount,
-        //         currentAmount: depositAmount,
-        //         date: new Date('2024-01-01'),
-        //         lastUpdateDate: new Date('2024-01-01'),
-        //     };
+        const depositAmount = req.body.depositAmount;
+        const depositDate = req.body.depositDate;
+        const withdrawAmount = req.body.withdrawAmount;
+        const withdrawDate = req.body.withdrawalDate;
+        const deposit = req.body.Deposit;
+        const withdraw = req.body.Withdraw;
+        console.log(typeof (deposit))
+        console.log("Withdraw: ", withdraw)
+        console.log("Deposit: ", deposit)
+        console.log("Deposit Date: ", depositDate)
+        console.log("Withdraw Date: ", withdrawDate)
+        if (deposit == "TRUE" || depositAmount || depositDate) {
+            const sanitizedDeposit = {
+                initialAmount: depositAmount,
+                currentAmount: depositAmount,
+                date: new Date(depositDate),
+                lastUpdateDate: new Date(depositDate),
+            };
 
-        //     savings.deposits.push(sanitizedDeposit);
-        //     savings.totalAmount += depositAmount;
+            savings.deposits.push(sanitizedDeposit);
+            savings.totalAmount += depositAmount;
 
-        //     const depositSavings = {
-        //         shareholder: shareholder?._id,
-        //         savings: savings?._id,
-        //         previousAmount: savings.totalAmount - depositAmount,
-        //         newAmount: savings.totalAmount,
-        //         type: "Savings",
-        //         depositDate: new Date('2024-01-01'),
-        //     };
-        //     await DepositHistory.create(depositSavings);
-        //     console.log(depositSavings)
+            const depositSavings = {
+                shareholder: shareholder?._id,
+                savings: savings?._id,
+                previousAmount: savings.totalAmount - depositAmount,
+                newAmount: savings.totalAmount,
+                type: "Savings",
+                depositDate: new Date(depositDate),
+            };
+            await DepositHistory.create(depositSavings);
+            console.log(depositSavings)
 
-        // }
+        }
 
-        // if (withdraw == "TRUE" || withdrawAmount || withdrawDate) {
-        //     if (withdrawAmount > savings.totalAmount) {
-        //         return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
-        //     }
+        if (withdraw == "TRUE" || withdrawAmount || withdrawDate) {
+            if (withdrawAmount > savings.totalAmount) {
+                return res.status(400).send({ status: 2, message: "Insufficient funds to withdraw." });
+            }
 
-        //     let remainingAmountToWithdraw = withdrawAmount;
+            let remainingAmountToWithdraw = withdrawAmount;
 
-        //     for (let i = 0; i < savings.deposits.length; i++) {
-        //         const deposit = savings.deposits[i];
+            for (let i = 0; i < savings.deposits.length; i++) {
+                const deposit = savings.deposits[i];
 
-        //         if (remainingAmountToWithdraw >= deposit.currentAmount) {
-        //             remainingAmountToWithdraw -= deposit.currentAmount;
-        //             deposit.currentAmount = 0;
-        //         } else {
-        //             deposit.currentAmount -= remainingAmountToWithdraw;
-        //             remainingAmountToWithdraw = 0;
-        //         }
+                if (remainingAmountToWithdraw >= deposit.currentAmount) {
+                    remainingAmountToWithdraw -= deposit.currentAmount;
+                    deposit.currentAmount = 0;
+                } else {
+                    deposit.currentAmount -= remainingAmountToWithdraw;
+                    remainingAmountToWithdraw = 0;
+                }
 
-        //         if (remainingAmountToWithdraw === 0) {
-        //             break;
-        //         }
-        //     }
+                if (remainingAmountToWithdraw === 0) {
+                    break;
+                }
+            }
 
-        //     savings.totalAmount -= withdrawAmount;
-        //     savings.withdrawn = savings.totalAmount === 0;
+            savings.totalAmount -= withdrawAmount;
+            savings.withdrawn = savings.totalAmount === 0;
 
-        //     const withdrawSavings = {
-        //         shareholder: shareholder?._id,
-        //         savings: savings._id,
-        //         previousAmount: savings.totalAmount + withdrawAmount,
-        //         newAmount: savings.totalAmount,
-        //         type: "Savings",
-        //         withdrawalDate: new Date(withdrawDate),
-        //     };
-        //     console.log(withdrawSavings)
-        //     await WithdrawalHistory.create(withdrawSavings);
-        // }
+            const withdrawSavings = {
+                shareholder: shareholder?._id,
+                savings: savings._id,
+                previousAmount: savings.totalAmount + withdrawAmount,
+                newAmount: savings.totalAmount,
+                type: "Savings",
+                withdrawalDate: new Date(withdrawDate),
+            };
+            console.log(withdrawSavings)
+            await WithdrawalHistory.create(withdrawSavings);
+        }
 
         await savings.save();
         await share.save();
@@ -1053,6 +1051,236 @@ exports.createShareholderBackup = async (req, res) => {
         res.status(400).send({ status: 1, message: err.message });
     }
 };
+
+// Replace the existing createShareholderBackup function with this improved version
+// exports.createShareholderBackup = async (req, res) => {
+//     try {
+//         // Extract basic address information
+//         const sanitizedAddress = {
+//             block: sanitizeInput(req.body.block) || 0,
+//             street: sanitizeInput(req.body.street) || 0,
+//             house: sanitizeInput(req.body.house) || 0,
+//             area: sanitizeInput(req.body.area) || 0,
+//         };
+//         const address = await Address.create(sanitizedAddress);
+
+//         // Extract workplace information
+//         const workplaceId = sanitizeInput(req.body.workplaceId);
+//         let workplaceDescription = '';
+//         if (workplaceId) {
+//             const workplace = await Workplace.findOne({ id: workplaceId.toString() });
+//             if (workplace) {
+//                 workplaceDescription = workplace.description;
+//             }
+//         }
+
+//         // Format dates
+//         const approvalDate = req.body.approvalDate ? new Date(req.body.approvalDate) : new Date('2024-01-01');
+//         const startDate = new Date('2024-01-01'); // Start of financial year
+
+//         // Create share with proper initial values
+//         const shareAmount = Number(req.body.shareAmount) || 0;
+//         const shareInitialPrice = Number(req.body.shareInitialPrice) || 0;
+//         const shareInterest = Number(req.body.profitShare) || 0;
+
+//         const sanitizedPurchase = {
+//             amount: shareAmount, // Number of shares
+//             initialAmount: shareInitialPrice, // Initial value
+//             currentAmount: shareInitialPrice, // Will be updated with interest
+//             date: startDate,
+//             lastUpdateDate: startDate,
+//         };
+
+//         const sanitizedShare = {
+//             purchases: [sanitizedPurchase],
+//             totalAmount: shareInitialPrice,
+//             shareIncrease: 0, // Will be calculated
+//             totalShareAmount: shareAmount,
+//             year: startDate.getFullYear(),
+//             withdrawn: req.body.withdrawn === 'TRUE' || req.body.withdrawn === true,
+//             serial: `SH-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`,
+//         };
+
+//         const share = await Share.create(sanitizedShare);
+
+//         // Create Amanat record
+//         const amanatAmount = Number(req.body.Amanat) || 0;
+//         const amanatDocument = {
+//             amount: amanatAmount,
+//             withdrawn: false,
+//             date: startDate,
+//             year: startDate.getFullYear().toString(),
+//         };
+//         const newAmanat = await Amanat.create(amanatDocument);
+
+//         // Create savings with proper initial values
+//         const savingsInitialPrice = Number(req.body.savingsInitialPrice) || 0;
+//         const savingsInterest = Number(req.body.profitSaving) || 0;
+
+//         const sanitizedDeposit = {
+//             initialAmount: savingsInitialPrice,
+//             currentAmount: savingsInitialPrice,
+//             date: startDate,
+//             lastUpdateDate: startDate,
+//         };
+
+//         const sanitizedSavings = {
+//             deposits: [sanitizedDeposit],
+//             totalAmount: savingsInitialPrice,
+//             savingsIncrease: 0, // Will be calculated
+//             savingsIncreaseReporting: 0,
+//             withdrawn: req.body.withdrawn === 'TRUE' || req.body.withdrawn === true,
+//             maxReached: false,
+//             amanat: newAmanat._id,
+//             year: startDate.getFullYear().toString(),
+//             alraseed: savingsInitialPrice,
+//         };
+
+//         const savings = await Saving.create(sanitizedSavings);
+
+//         // Process admin ID information
+//         const adminId = req.body.adminId || [];
+//         const adminIdWithTimestamp = adminId.map(admin => ({
+//             ...admin,
+//             timestamp: new Date()
+//         }));
+//         const adminIdWithOutTimestamp = adminId[0]?.admin;
+
+//         // Create the shareholder record
+//         const sanitizedShareholder = {
+//             fName: sanitizeInput(req.body.fName) || '',
+//             arabFName: sanitizeInput(req.body.arabFName) || '',
+//             lName: sanitizeInput(req.body.lName) || '',
+//             arabLName: sanitizeInput(req.body.arabLName) || '',
+//             fullName: sanitizeInput(req.body.fullName) || sanitizeInput(req.body.fName) + ' ' + sanitizeInput(req.body.lName),
+//             membersCode: req.body.membersCode,
+//             DOB: req.body.dob ? new Date(req.body.dob) : null,
+//             civilId: sanitizeInput(req.body.civilId || '').replace(/'/g, ''),
+//             ibanNumber: sanitizeInput(req.body.ibanNumber) || '',
+//             mobileNumber: sanitizeInput(req.body.mobileNumber) || '',
+//             gender: sanitizeInput(req.body.gender) || 'male',
+//             workplace: workplaceDescription,
+//             withdrawn: req.body.withdrawn === 'TRUE' || req.body.withdrawn === true,
+//             status: 0,
+//             membershipStatus: 0,
+//             dateOfDeath: null,
+//             resignationDate: null,
+//             createdByAdmin: adminIdWithOutTimestamp,
+//             email: sanitizeInput(req.body.email) || '',
+//             poBox: sanitizeInput(req.body.poBox) || '',
+//             zipCode: sanitizeInput(req.body.zipCode) || '',
+//             Area: sanitizeInput(req.body.area) || '',
+//             Country: "كويت",
+//             joinDate: approvalDate,
+//             address: address?._id,
+//             share: share?._id,
+//             savings: savings?._id
+//         };
+
+//         const shareholder = await Shareholder.create(sanitizedShareholder);
+
+//         // Handle deposits if present in the request
+//         const depositAmount = Number(req.body.depositAmount) || 0;
+//         const depositDate = req.body.depositDate ? new Date(req.body.depositDate) : null;
+//         const deposit = req.body.Deposit === 'TRUE' || req.body.Deposit === true;
+
+//         if (deposit && depositAmount && depositDate) {
+//             const sanitizedDeposit = {
+//                 initialAmount: depositAmount,
+//                 currentAmount: depositAmount,
+//                 date: depositDate,
+//                 lastUpdateDate: depositDate,
+//             };
+
+//             savings.deposits.push(sanitizedDeposit);
+//             savings.totalAmount += depositAmount;
+
+//             const depositSavings = {
+//                 shareholder: shareholder._id,
+//                 savings: savings._id,
+//                 previousAmount: savings.totalAmount - depositAmount,
+//                 newAmount: savings.totalAmount,
+//                 type: "Savings",
+//                 depositDate: depositDate,
+//             };
+//             await DepositHistory.create(depositSavings);
+//         }
+
+//         // Handle withdrawals if present in the request
+//         const withdrawAmount = Number(req.body.withdrawAmount) || 0;
+//         const withdrawDate = req.body.withdrawalDate ? new Date(req.body.withdrawalDate) : null;
+//         const withdraw = req.body.Withdraw === 'TRUE' || req.body.Withdraw === true;
+
+//         if (withdraw && withdrawAmount && withdrawDate) {
+//             if (withdrawAmount > savings.totalAmount) {
+//                 console.log("Warning: Withdrawal amount exceeds savings balance.");
+//                 // Continue anyway since this is a data import
+//             }
+
+//             let remainingAmountToWithdraw = withdrawAmount;
+
+//             for (let i = 0; i < savings.deposits.length; i++) {
+//                 const deposit = savings.deposits[i];
+
+//                 if (remainingAmountToWithdraw >= deposit.currentAmount) {
+//                     remainingAmountToWithdraw -= deposit.currentAmount;
+//                     deposit.currentAmount = 0;
+//                 } else {
+//                     deposit.currentAmount -= remainingAmountToWithdraw;
+//                     remainingAmountToWithdraw = 0;
+//                 }
+
+//                 if (remainingAmountToWithdraw === 0) {
+//                     break;
+//                 }
+//             }
+
+//             savings.totalAmount = Math.max(0, savings.totalAmount - withdrawAmount);
+//             savings.withdrawn = savings.totalAmount === 0;
+
+//             const withdrawSavings = {
+//                 shareholder: shareholder._id,
+//                 savings: savings._id,
+//                 previousAmount: savings.totalAmount + withdrawAmount,
+//                 newAmount: savings.totalAmount,
+//                 type: "Savings",
+//                 withdrawalDate: withdrawDate,
+//             };
+//             await WithdrawalHistory.create(withdrawSavings);
+//         }
+
+//         // Calculate initial interest for share and savings based on provided profit values
+//         if (shareInterest > 0) {
+//             share.shareIncrease = shareInterest;
+//             share.purchases[0].currentAmount = share.purchases[0].initialAmount + shareInterest;
+//         }
+
+//         if (savingsInterest > 0) {
+//             savings.savingsIncrease = savingsInterest;
+//             savings.savingsIncreaseReporting = savingsInterest;
+//             savings.deposits[0].currentAmount = savings.deposits[0].initialAmount + savingsInterest;
+//             savings.alraseed = savings.deposits[0].currentAmount;
+//         }
+
+//         // Save all records with updated values
+//         await Promise.all([
+//             savings.save(),
+//             share.save(),
+//             shareholder.save()
+//         ]);
+
+//         // Return success response
+//         res.status(201).send({
+//             status: 0,
+//             message: "Shareholder Saved Successfully.",
+//             shareholder
+//         });
+
+//     } catch (err) {
+//         console.error("Error in createShareholderBackup:", err);
+//         res.status(400).send({ status: 1, message: err.message });
+//     }
+// };
 // exports.createShareholderBackup = async (req, res) => {
 //     try {
 //         const sanitizedAddress = {
@@ -1096,19 +1324,19 @@ exports.createShareholderBackup = async (req, res) => {
 //             totalShareAmount: shareAmount,
 //             year: new Date(approvalDate).getFullYear(),
 //             serial: req.body.serial,
-//             adminId: adminIdWithTimestamp,
+//             // adminId: adminIdWithTimestamp,
 //             withdrawn: withdrawn,
 //         };
 
 //         const share = await Share.create(sanitizedShare);
-//         const adminId = (req.body.adminId);
+//         // const adminId = (req.body.adminId);
 
-//         const adminIdWithTimestamp = adminId.map(admin => ({
-//             ...admin,
-//             timestamp: new Date()
-//         }));
-//         const adminIdWithOutTimestamp = adminId[0]?.admin
-//         console.log("This is the adminId", adminIdWithOutTimestamp);
+//         // const adminIdWithTimestamp = adminId.map(admin => ({
+//         //     ...admin,
+//         //     timestamp: new Date()
+//         // }));
+//         // const adminIdWithOutTimestamp = adminId[0]?.admin
+//         // console.log("This is the adminId", adminIdWithOutTimestamp);
 //         let amanatDocument;
 //         if (req.body.amanat) {
 //             amanatDocument = {
@@ -1137,7 +1365,7 @@ exports.createShareholderBackup = async (req, res) => {
 //             maxReached: false,
 //             amanat: newAmanat,
 //             year: new Date().getFullYear(),
-//             adminId: adminIdWithTimestamp,
+//             // adminId: adminIdWithTimestamp,
 //         };
 
 //         const savings = await Saving.create(sanitizedSavings);
@@ -1159,7 +1387,7 @@ exports.createShareholderBackup = async (req, res) => {
 //             membershipStatus: 0,
 //             dateOfDeath: null,
 //             resignationDate: null,
-//             createdByAdmin: adminIdWithOutTimestamp,
+//             // createdByAdmin: adminIdWithOutTimestamp,
 //             workplace: workplaceDescription,
 //             email: sanitizeInput(req.body.email),
 //             poBox: sanitizeInput(req.body.poBox),
@@ -1177,7 +1405,7 @@ exports.createShareholderBackup = async (req, res) => {
 //             savings: updatedSavings._id,
 //             previousAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0) - initialAmount,
 //             newAmount: updatedSavings.deposits.reduce((total, deposit) => total + deposit.initialAmount, 0),
-//             admin: adminId,
+//             // admin: adminId,
 //             type: "Savings",
 //             depositDate: new Date(),
 //         };

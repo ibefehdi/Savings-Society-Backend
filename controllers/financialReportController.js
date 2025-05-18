@@ -167,16 +167,19 @@ exports.getAllShareholderReport = async (req, res) => {
             const { _id, membersCode, civilId, fName, lName, share, savings } = shareholder;
 
             // Calculate the share increase and current amount
-            let shareIncrease = share ? share.shareIncrease : 0;
+            let shareIncrease = 0;
             let shareCurrentAmount = 0;
-
-            shareCurrentAmount = share ? share?.totalAmount : 0;
-
+            if (share && share.purchases) {
+                share.purchases.forEach(purchase => {
+                    shareIncrease += purchase.currentAmount - purchase.initialAmount;
+                });
+                shareCurrentAmount = share.totalAmount;
+            }
 
             // Get the savings increase directly from the savings record
             let savingsIncrease = savings ? savings.savingsIncrease : 0;
             let savingsCurrentAmount = savings ? savings.totalAmount : 0;
-            console.log("Savings Increase: ", savingsIncrease, "Savings Current Amount:", savingsCurrentAmount)
+
             // Calculate the amanat amount
             let amanatAmount = 0;
             if (savings && savings.amanat) {
@@ -184,17 +187,17 @@ exports.getAllShareholderReport = async (req, res) => {
             }
 
             // Calculate the total
-            const total = (savingsCurrentAmount).toFixed(3);
-            // console.log("total:", total)
+            const total = savingsCurrentAmount + amanatAmount + savingsIncrease;
+
             // Fetch withdrawal history for this shareholder
-            const withdrawalHistories = await TransferLog.find({
+            const withdrawalHistories = await WithdrawalHistory.find({
                 shareholder: _id,
-                transferType: 'Savings'
+                type: 'Savings'
             });
 
             // Calculate transferSavings
             const transferSavings = withdrawalHistories.reduce((total, history) => {
-                return (history.amount || 0);
+                return total + (parseFloat(history.previousAmount) - parseFloat(history.newAmount));
             }, 0);
 
             // Prepare the financial reporting object for the shareholder
@@ -210,14 +213,14 @@ exports.getAllShareholderReport = async (req, res) => {
                 savingsIncrease,
                 savingsCurrentAmount,
                 amanatAmount,
-                transferSavings,
-                total
+                total,
+                transferSavings
             };
         }));
 
         const count = shareholders.length;
-        const grandTotal = financialReports.reduce((sum, report) => Number(sum) + Number(report.total), 0).toFixed(3);
-        console.log("Grand Total: " + grandTotal)
+        const grandTotal = financialReports.reduce((sum, report) => sum + report.total, 0).toFixed(3);
+
         res.json({
             data: financialReports,
             count: count,
