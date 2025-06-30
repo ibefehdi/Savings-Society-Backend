@@ -460,21 +460,63 @@ exports.deleteVoucher = async (req, res) => {
 
 exports.getAllVouchersFormatted = async (req, res) => {
     try {
-        // Filter logic (kept as is)
+        // Build filter object based on query parameters
         let filter = {};
+
+        // Building filter
         if (req.query.buildingId) {
             filter.buildingId = req.query.buildingId;
         }
-        if (req.query.tenantName) {
-            filter['tenantId.name'] = { $regex: req.query.tenantName, $options: 'i' };
-        }
-        if (req.query.civilId) {
-            filter['tenantId.civilId'] = { $regex: req.query.civilId, $options: 'i' };
-        }
-        if (req.query.contactNumber) {
-            filter['tenantId.contactNumber'] = { $regex: req.query.contactNumber, $options: 'i' };
+
+        // Flat filter
+        if (req.query.flatId) {
+            filter.flatId = req.query.flatId;
         }
 
+        // Voucher number filter
+        if (req.query.voucherNo) {
+            filter.voucherNo = { $regex: req.query.voucherNo, $options: 'i' };
+        }
+
+        // Amount range filter
+        if (req.query.amountMin || req.query.amountMax) {
+            filter.amount = {};
+            if (req.query.amountMin) {
+                filter.amount.$gte = parseFloat(req.query.amountMin);
+            }
+            if (req.query.amountMax) {
+                filter.amount.$lte = parseFloat(req.query.amountMax);
+            }
+        }
+
+        // Status filter
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+
+        // Pending date range filter
+        if (req.query.pendingDateFrom || req.query.pendingDateTo) {
+            filter.pendingDate = {};
+            if (req.query.pendingDateFrom) {
+                filter.pendingDate.$gte = new Date(req.query.pendingDateFrom);
+            }
+            if (req.query.pendingDateTo) {
+                filter.pendingDate.$lte = new Date(req.query.pendingDateTo);
+            }
+        }
+
+        // Paid date range filter
+        if (req.query.paidDateFrom || req.query.paidDateTo) {
+            filter.paidDate = {};
+            if (req.query.paidDateFrom) {
+                filter.paidDate.$gte = new Date(req.query.paidDateFrom);
+            }
+            if (req.query.paidDateTo) {
+                filter.paidDate.$lte = new Date(req.query.paidDateTo);
+            }
+        }
+
+        // Fetch vouchers with populated references
         const vouchers = await Voucher.find(filter)
             .populate({
                 path: 'flatId',
@@ -486,8 +528,35 @@ exports.getAllVouchersFormatted = async (req, res) => {
             .populate('tenantId')
             .populate('buildingId');
 
+        // Apply tenant-related filters after population
+        let filteredVouchers = vouchers;
+
+        if (req.query.tenantName) {
+            filteredVouchers = filteredVouchers.filter(voucher =>
+                voucher.tenantId &&
+                voucher.tenantId.name &&
+                voucher.tenantId.name.toLowerCase().includes(req.query.tenantName.toLowerCase())
+            );
+        }
+
+        if (req.query.civilId) {
+            filteredVouchers = filteredVouchers.filter(voucher =>
+                voucher.tenantId &&
+                voucher.tenantId.civilId &&
+                voucher.tenantId.civilId.toLowerCase().includes(req.query.civilId.toLowerCase())
+            );
+        }
+
+        if (req.query.contactNumber) {
+            filteredVouchers = filteredVouchers.filter(voucher =>
+                voucher.tenantId &&
+                voucher.tenantId.contactNumber &&
+                voucher.tenantId.contactNumber.includes(req.query.contactNumber)
+            );
+        }
+
         // Sort vouchers by flat number
-        vouchers.sort((a, b) => {
+        filteredVouchers.sort((a, b) => {
             const flatA = a.flatId ? a.flatId.flatNumber : '';
             const flatB = b.flatId ? b.flatId.flatNumber : '';
 
@@ -534,10 +603,12 @@ exports.getAllVouchersFormatted = async (req, res) => {
 
         let grandTotal = 0;
 
-        vouchers.forEach((voucher) => {
+        filteredVouchers.forEach((voucher) => {
+            const buildingInfo = voucher.flatId ? voucher.flatId.buildingId : voucher.buildingId;
+
             worksheet.addRow({
                 voucherNo: voucher.voucherNo || 'N/A',
-                buildingName: voucher.buildingId ? voucher.buildingId.name : 'N/A',
+                buildingName: buildingInfo ? buildingInfo.name : 'N/A',
                 flatNumber: voucher.flatId ? voucher.flatId.flatNumber : 'N/A',
                 tenantName: voucher.tenantId ? voucher.tenantId.name : 'N/A',
                 civilId: voucher.tenantId ? voucher.tenantId.civilId : 'N/A',
