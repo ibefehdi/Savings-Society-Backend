@@ -132,7 +132,13 @@ exports.getAllActiveTenants = async (req, res) => {
 
 exports.getAllActiveTenantsCSV = async (req, res) => {
     try {
-        const activeTenants = await Tenant.find({
+        const searchCivilId = req.query.searchCivilId || '';
+        const contactNumber = req.query.searchContactNumber || '';
+        const name = req.query.searchName || '';
+        const buildingId = req.query.buildingId || '';
+
+        // Base query for active tenants
+        let query = {
             $and: [
                 {
                     $or: [
@@ -143,7 +149,26 @@ exports.getAllActiveTenantsCSV = async (req, res) => {
                 },
                 { flatId: { $exists: true, $ne: null } }
             ]
-        })
+        };
+
+        // Add search criteria to the query
+        if (searchCivilId) {
+            query.civilId = { $regex: searchCivilId, $options: 'i' };
+        }
+        if (contactNumber) {
+            query.contactNumber = { $regex: contactNumber, $options: 'i' };
+        }
+        if (name) {
+            query.name = { $regex: name, $options: 'i' };
+        }
+
+        // If buildingId is provided, filter by it
+        if (buildingId) {
+            const flatIds = await Flat.find({ buildingId }).distinct('_id');
+            query.flatId = { $in: flatIds };
+        }
+
+        const activeTenants = await Tenant.find(query)
             .populate({
                 path: 'flatId',
                 populate: {
