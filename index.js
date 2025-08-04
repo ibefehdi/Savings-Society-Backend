@@ -27,6 +27,7 @@ const transactionRoutes = require("./routes/transactionRoutes")
 const tenantRoutes = require("./routes/tenantRoutes")
 const contractRoutes = require("./routes/contractRoutes");
 const logRoutes = require("./routes/logRoutes");
+const interest2024ReportRoutes = require("./routes/interest2024ReportRoutes");
 const logger = require("./utils/winstonLogger")
 const Share = require("./models/shareSchema");
 const Saving = require("./models/savingsSchema");
@@ -278,6 +279,7 @@ app.use('/api/v1/', tenantRoutes)
 app.use('/api/v1/', logRoutes);
 app.use('/api/v1/', tenantHistoryRoutes)
 app.use('/api/v1/', shareholderFinanceHistoryRoutes)
+app.use('/api/interest2024Report/', interest2024ReportRoutes)
 
-app.listen(port, '0.0.0.0', () => console.log(`Listening on port ${port}`));
+app.listen(8000, '0.0.0.0', () => console.log(`Listening on port ${port}`));
 
