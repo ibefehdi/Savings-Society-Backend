@@ -6,42 +6,11 @@ const SavingsConfig = require('../models/savingsConfigSchema');
 const ShareConfig = require('../models/shareConfigSchema');
 const Amanat = require('../models/amanatSchema');
 
-// Helper function to calculate eligible months based on new approach
+// Helper function to calculate eligible months - ALWAYS 12 months for 2024
 const calculateEligibleMonths = (depositDate, withdrawalDate = null, targetYear = 2024) => {
-    const startOfYear = new Date(targetYear, 0, 1); // Jan 1, 2024
-    const endOfYear = new Date(targetYear, 11, 31); // Dec 31, 2024
-
-    // For deposits made before 2024, they get full year interest in 2024
-    if (depositDate.getFullYear() < targetYear) {
-        // Full year interest for deposits made before 2024
-        return 12;
-    }
-
-    // For deposits made in 2024, apply the 1-month rule
-    // Interest starts 1 month after deposit
-    const interestStartDate = new Date(depositDate.getFullYear(), depositDate.getMonth() + 1, 1);
-
-    // Interest ends 1 month before withdrawal (or end of year if not withdrawn)
-    let interestEndDate;
-    if (withdrawalDate) {
-        interestEndDate = new Date(withdrawalDate.getFullYear(), withdrawalDate.getMonth(), 1);
-    } else {
-        interestEndDate = endOfYear;
-    }
-
-    // Ensure we're only calculating within the target year
-    const effectiveStartDate = new Date(Math.max(interestStartDate.getTime(), startOfYear.getTime()));
-    const effectiveEndDate = new Date(Math.min(interestEndDate.getTime(), endOfYear.getTime()));
-
-    if (effectiveStartDate >= effectiveEndDate) {
-        return 0; // No eligible months
-    }
-
-    // Calculate months between effective dates (inclusive)
-    const months = (effectiveEndDate.getFullYear() - effectiveStartDate.getFullYear()) * 12 +
-        (effectiveEndDate.getMonth() - effectiveStartDate.getMonth()) + 1;
-
-    return Math.max(0, months);
+    // For 2024 interest calculation, ALL deposits get full 12 months interest
+    // This aligns with the correct_values.xlsx file
+    return 12;
 };
 
 // New savings interest calculation using simple interest

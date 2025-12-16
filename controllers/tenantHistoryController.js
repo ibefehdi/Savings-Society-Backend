@@ -77,52 +77,88 @@ exports.getAllTenantHistories = async (req, res) => {
         const resultsPerPage = parseInt(req.query.resultsPerPage, 10) || 10;
         const skip = (page - 1) * resultsPerPage;
 
-        // Build the filter object
-        const filter = {};
+        // Build the aggregation pipeline
+        const pipeline = [];
+
+        // Lookup tenant data
+        pipeline.push({
+            $lookup: {
+                from: 'tenants',
+                localField: 'tenantId',
+                foreignField: '_id',
+                as: 'tenantId'
+            }
+        });
+        pipeline.push({ $unwind: { path: '$tenantId', preserveNullAndEmptyArrays: false } });
+
+        // Lookup flat data
+        pipeline.push({
+            $lookup: {
+                from: 'flats',
+                localField: 'flatId',
+                foreignField: '_id',
+                as: 'flatId'
+            }
+        });
+        pipeline.push({ $unwind: { path: '$flatId', preserveNullAndEmptyArrays: false } });
+
+        // Lookup building data for the flat
+        pipeline.push({
+            $lookup: {
+                from: 'buildings',
+                localField: 'flatId.buildingId',
+                foreignField: '_id',
+                as: 'flatId.buildingId'
+            }
+        });
+        pipeline.push({ $unwind: { path: '$flatId.buildingId', preserveNullAndEmptyArrays: true } });
+
+        // Build match conditions based on search filters
+        const matchConditions = {};
 
         if (req.query.tenantName) {
             // Split the name into words and create a regex that matches all words in any order
             const nameWords = req.query.tenantName.split(' ').filter(word => word.length > 0);
             const nameRegex = nameWords.map(word => `(?=.*${word})`).join('');
-            filter['tenantId.name'] = new RegExp(nameRegex, 'i');
+            matchConditions['tenantId.name'] = { $regex: nameRegex, $options: 'i' };
         }
 
         if (req.query.flatNumber) {
-            filter['flatId.flatNumber'] = req.query.flatNumber;
+            matchConditions['flatId.flatNumber'] = req.query.flatNumber;
         }
 
         if (req.query.buildingId) {
-            filter['flatId.buildingId'] = req.query.buildingId;
+            matchConditions['flatId.buildingId._id'] = new mongoose.Types.ObjectId(req.query.buildingId);
         }
 
-        console.log('Applied filters:', filter);  // Log the final filter object
+        // Apply match conditions if any filters exist
+        if (Object.keys(matchConditions).length > 0) {
+            pipeline.push({ $match: matchConditions });
+        }
 
-        const tenantHistories = await TenantHistory.find()
-            .populate({
-                path: 'tenantId',
-                match: filter['tenantId.name'] ? { name: filter['tenantId.name'] } : {},
-            })
-            .populate({
-                path: 'flatId',
-                match: {
-                    ...(filter['flatId.flatNumber'] && { flatNumber: filter['flatId.flatNumber'] }),
-                    ...(filter['flatId.buildingId'] && { buildingId: filter['flatId.buildingId'] }),
-                },
-                populate: {
-                    path: 'buildingId'
-                }
-            })
-            .skip(skip)
-            .limit(resultsPerPage)
-            .lean();
+        console.log('Applied filters:', matchConditions);
 
-        // Filter out null results from populate
-        const filteredHistories = tenantHistories.filter(history => history.tenantId && history.flatId);
+        // Use facet to get both count and paginated data
+        pipeline.push({
+            $facet: {
+                data: [
+                    { $sort: { _id: -1 } },
+                    { $skip: skip },
+                    { $limit: resultsPerPage }
+                ],
+                totalCount: [
+                    { $count: 'count' }
+                ]
+            }
+        });
 
-        const count = filteredHistories.length;
+        const result = await TenantHistory.aggregate(pipeline);
+
+        const tenantHistories = result[0].data;
+        const count = result[0].totalCount[0]?.count || 0;
 
         res.status(200).json({
-            data: filteredHistories,
+            data: tenantHistories,
             count: count,
             metadata: { total: count },
         });

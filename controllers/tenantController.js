@@ -85,19 +85,62 @@ exports.getAllActiveTenants = async (req, res) => {
             query.name = { $regex: name, $options: 'i' };
         }
 
-        // Add a stable sort
+        // If buildingId is provided, use aggregation to sort by flat number
+        if (buildingId) {
+            const flatIds = await Flat.find({ buildingId: new mongoose.Types.ObjectId(buildingId) }).distinct('_id');
+            query.flatId = { $in: flatIds };
+
+            // Use aggregation to sort by flat number numerically
+            const pipeline = [
+                { $match: query },
+                {
+                    $lookup: {
+                        from: 'flats',
+                        localField: 'flatId',
+                        foreignField: '_id',
+                        as: 'flatId'
+                    }
+                },
+                { $unwind: { path: '$flatId', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'buildings',
+                        localField: 'flatId.buildingId',
+                        foreignField: '_id',
+                        as: 'flatId.buildingId'
+                    }
+                },
+                { $unwind: { path: '$flatId.buildingId', preserveNullAndEmptyArrays: true } },
+                {
+                    $addFields: {
+                        flatNumberInt: { $toInt: '$flatId.flatNumber' }
+                    }
+                },
+                { $sort: { flatNumberInt: 1, _id: 1 } },
+                { $skip: skip },
+                { $limit: resultsPerPage }
+            ];
+
+            const activeTenants = await Tenant.aggregate(pipeline);
+            const count = await Tenant.countDocuments(query);
+
+            const tenantsWithFrom = activeTenants.map(tenant => ({
+                ...tenant,
+                tenantFrom: tenant.flatId ? "Flat" : "Hall"
+            }));
+
+            return res.status(200).json({
+                data: tenantsWithFrom,
+                count: count,
+                metadata: { total: count, page: page, resultsPerPage: resultsPerPage },
+            });
+        }
+
+        // Default sorting by name when no building is selected
         const sortField = req.query.sortField || 'name';
         const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
-        let tenantQuery = Tenant.find(query);
-
-        // If buildingId is provided, filter by it
-        if (buildingId) {
-            const flatIds = await Flat.find({ buildingId }).distinct('_id');
-            query.flatId = { $in: flatIds };
-        }
-
-        tenantQuery = Tenant.find(query).populate({
+        const tenantQuery = Tenant.find(query).populate({
             path: 'flatId',
             populate: {
                 path: 'buildingId'
